@@ -45,8 +45,8 @@ Two findings drive real design decisions:
 | Obsidian | **Standalone, one-time import** | SQLite is the single source of truth. No SAF permissions, no YAML parsing at runtime, no sync conflicts. JSON export covers backup. |
 | Prayer times | **Computed on-device (Adhan)** | Set location + calculation method once; exact times forever, offline, no file to maintain. |
 | Distribution | **GitHub Releases + Obtainium now, F-Droid RFP later** | APK on the phone in days with auto-updates, while the repo stays F-Droid-compliant so the RFP is a formality later. |
-| License | **GPL-3.0** | F-Droid's norm for copyleft apps. Trivially changed before first release if preferred. |
-| Application ID | `dev.adambench.habbits` | Permanent and unchangeable after first release — confirm before M0 ends. |
+| License | **GPL-3.0** — decided | F-Droid's norm for copyleft apps. Full text in [`LICENSE`](LICENSE). |
+| Application ID | **Deferred** — proposal: `dev.adambench.habbits` | Permanent and unchangeable after first release. Must be fixed before M7 (first signed release), not before M0. |
 
 **Dependency injection:** manual (a small `AppContainer`). Hilt's annotation
 processing would add build time and method count for an app with roughly six
@@ -246,13 +246,14 @@ after it is improvement rather than migration.
 | Orphan IDs silently dropped | Explicit archived-habit path + a reconciliation count that must match 3,187 |
 | Release keystore lost | Generate at M7, gitignored, backed up off-machine — losing it means the app can never be updated |
 | Timezone/DST corrupting dates | `epochDay` from `LocalDate`, never an instant |
-| Application ID churn | Fixed before first release; it can never change afterwards |
+| Application ID churn | Placeholder until M7; settled before the first signed release, after which it can never change |
 | F-Droid build reproducibility | No proprietary dependencies (Adhan is MIT, AndroidX is Apache-2.0); fastlane metadata maintained from M0 |
 
 ## 11. Open items
 
-- Confirm `dev.adambench.habbits` as the permanent application ID.
-- Confirm GPL-3.0 as the licence.
+- **Application ID** — deferred by choice. `dev.adambench.habbits` is the working
+  placeholder; it must be settled before M7, since it can never change after the
+  first signed release.
 - Location and calculation method for prayer times (city + e.g. MWL, Umm al-Qura, ISNA).
 - Whether the 24 orphan habits should be reviewed individually after import, or
   left archived in bulk.
