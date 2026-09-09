@@ -1,0 +1,33 @@
+# --- Android / Gradle ---
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build/
+**/build/
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+*.apk
+*.aab
+*.keystore
+*.jks
+keystore.properties
+
+# --- Node (tooling / importer) ---
+node_modules/
+dist/
+*.log
+.npm/
+
+# --- Python (tooling) ---
+__pycache__/
+*.pyc
+.venv/
+
+# --- Personal data: never commit vault exports or habit history ---
+/data/
+*.habits.json
+vault-export*.json
