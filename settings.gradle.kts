@@ -15,4 +15,6 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Habbits"
-include(":app")
+include(":shared")
+include(":androidApp")
+include(":desktopApp")

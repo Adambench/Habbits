@@ -9,8 +9,7 @@ android {
     compileSdkMinor = 2
 
     defaultConfig {
-        // Placeholder until M7 — see PLAN.md §10. It can never change after the
-        // first signed release.
+        // Placeholder until M7 — see PLAN.md §10.
         applicationId = "dev.adambench.habbits"
         minSdk = 26
         targetSdk = 37
@@ -43,20 +42,12 @@ android {
     }
 }
 
-kotlin {
-    jvmToolchain(21)
-}
-
 dependencies {
+    implementation(project(":shared"))
     implementation(platform(libs.androidx.compose.bom))
-
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.ktx)
-
     implementation(libs.compose.ui)
-    implementation(libs.compose.ui.graphics)
     implementation(libs.compose.material3)
-    implementation(libs.compose.ui.tooling.preview)
-    debugImplementation(libs.compose.ui.tooling)
 }
