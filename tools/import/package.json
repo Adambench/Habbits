@@ -1,0 +1,15 @@
+{
+  "name": "habbits-import",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "One-time importer: Obsidian vault -> habits-export.json",
+  "bin": { "habbits-import": "./index.mjs" },
+  "scripts": {
+    "import": "node index.mjs"
+  },
+  "license": "GPL-3.0-or-later",
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  }
+}

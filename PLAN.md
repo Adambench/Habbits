@@ -10,16 +10,20 @@ F-Droid from day one.
 
 ## 1. What exists today (measured, not assumed)
 
-Read directly from `/home/zayn/Obsidian/LifeOS` on 2026-09-08:
+Read directly from `~/Obsidian/LifeOS` on 2026-09-08. Note that Obsidian's own
+config names a vault path that no longer exists, and a second, near-empty copy
+of the vault sits inside a Syncthing folder — so the importer takes the vault
+path as an argument and verifies it rather than auto-detecting:
 
 | Fact | Value |
 |---|---|
 | Configured habits | **36**, in `Habit logger.md` frontmatter (`habit_config`) |
-| Daily notes with habit data | **238** (`Daily Notes/yyyy/MM/yyyy-MM-dd.md`) |
+| Daily notes with habit data | **239** (`Daily Notes/yyyy/MM/yyyy-MM-dd.md`) |
 | Date range | **2026-01-01 → 2026-08-29** |
-| Total logged entries | **3,187** |
-| Value types | 1,780 boolean `true`, 1,407 integers, **0 malformed** |
-| Distinct habit IDs in history | **57** |
+| Total completions | **3,178** |
+| Value types | 1,771 `true`, 1,407 integers, **0 malformed** |
+| Explicit `false` values | **9** — these mean *not* completed and are excluded |
+| Distinct habit IDs in history | **57** (of **60** habits after import) |
 | Orphans (logged, but deleted from config) | **24** |
 | Configured but never logged | 3 |
 | `Templates/Prayer Times.md` | **0 bytes — empty** |
@@ -136,18 +140,26 @@ The importer must handle, specifically:
 - 36 configured habits → `habits`, preserving array order as `sort_order`.
 - 24 orphan IDs → auto-created with `status = archived` and a label derived from
   the ID (`duaYunusMorning` → "Dua Yunus Morning"), so 8 months of history stays
-  attached to something real. A post-import review screen lists them for renaming,
-  merging into an existing habit, or deleting.
+  attached to something real. They are archived in bulk and reviewable in the app
+  later; archived habits never appear in the day view, so they cost nothing until
+  looked at.
 - `true` → `value = NULL`; integers → `value = n`.
 - Skip any filename that is not `yyyy-MM-dd.md` (catches `Daily Note Template.md`).
 - Preserve `pomodoros` and `timeblocks` into the export JSON but leave them
   unused — cheap insurance for the Phase 2 dashboard.
+- A value of `false` means the habit was explicitly *not* done, so it is skipped
+  rather than imported as a completion.
 - **Idempotent**: upsert on `(date, habit_id)`, so re-running never duplicates.
 
 **Verification gate:** the CLI prints a reconciliation report (files scanned,
 entries parsed, per-habit counts, orphans found) and the app shows the same
 totals after import. The migration is only accepted when it reports exactly
-**3,187 entries across 238 days for 57 habits**. That number is the test.
+**3,178 completions across 239 days for 60 habits**. That number is the test.
+
+The figure was originally recorded as 3,187 across 238 days. That was wrong on
+both counts: it folded the 9 explicit `false` values in with the `true` ones,
+and it read only the first 2 KB of each note, missing two where `habits:` starts
+later. The importer's reconciliation report is what caught it.
 
 ## 6. UI plan
 
@@ -237,7 +249,7 @@ gradle/libs.versions.toml  pinned dependency versions
 |---|---|---|
 | **M0** | Toolchain & skeleton | JDK 21 + Android SDK installed; shared Compose UI builds for Android **and** desktop |
 | **M1** | Data layer | Room schema, DAOs, repository, unit tests for scheduling rules |
-| **M2** | Import | CLI + in-app import reconcile to exactly 3,187 entries / 238 days / 57 habits |
+| **M2** | Import | CLI + in-app import reconcile to exactly 3,178 completions / 239 days / 60 habits |
 | **M3** | Core day view | Categories, cards, toggle, stepper, date navigation — daily use possible |
 | **M4** | Habit management | Editor sheet, all three frequency types, drag-reorder, sleep, delete |
 | **M5** | Prayer times | Adhan integration, location/method settings, sticky headers, auto-scroll |
@@ -255,7 +267,7 @@ after it is improvement rather than migration.
 |---|---|
 | JDK 25 incompatible with AGP | Install JDK 21 and pin a Gradle toolchain; leave the system default alone |
 | Android SDK download is 2–3 GB | Scripted one-time setup at M0 |
-| Orphan IDs silently dropped | Explicit archived-habit path + a reconciliation count that must match 3,187 |
+| Orphan IDs silently dropped | Explicit archived-habit path + a reconciliation count that must match 3,178 |
 | Release keystore lost | Generate at M7, gitignored, backed up off-machine — losing it means the app can never be updated |
 | Timezone/DST corrupting dates | `epochDay` from `LocalDate`, never an instant |
 | Application ID churn | Placeholder until M7; settled before the first signed release, after which it can never change |
@@ -268,5 +280,5 @@ after it is improvement rather than migration.
   placeholder; it must be settled before M7, since it can never change after the
   first signed release.
 - Location and calculation method for prayer times (city + e.g. MWL, Umm al-Qura, ISNA).
-- Whether the 24 orphan habits should be reviewed individually after import, or
-  left archived in bulk.
+- ~~Whether the 24 orphan habits should be reviewed individually after import~~ —
+  **decided: archived in bulk**, reviewed later in the app.

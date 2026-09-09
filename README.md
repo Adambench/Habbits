@@ -9,8 +9,8 @@ Fajr, Shuruq, Dhuhr, Asr, Maghrib, Isha) with prayer times computed on-device,
 and all existing history imported from the vault in one pass.
 
 **Status: planning.** No application code yet — see [PLAN.md](PLAN.md) for the
-full build plan, measured against the real vault data (36 habits, 238 days,
-3,187 logged entries).
+full build plan, measured against the real vault data (36 configured habits,
+239 days, 3,178 completions).
 
 ## Stack
 
