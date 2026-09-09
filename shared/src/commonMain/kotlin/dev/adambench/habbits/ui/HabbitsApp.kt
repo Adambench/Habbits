@@ -13,16 +13,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.background
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import dev.adambench.habbits.ui.theme.HabbitsTheme
 
 /**
  * The eight slots the day is divided into, in order. Carried over verbatim from
@@ -89,13 +86,5 @@ private fun CategoryRow(name: String) {
             text = name,
             style = MaterialTheme.typography.titleMedium,
         )
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun HabbitsAppPreview() {
-    HabbitsTheme {
-        Surface { HabbitsApp() }
     }
 }

@@ -40,9 +40,11 @@ Two findings drive real design decisions:
 
 | Decision | Choice | Why |
 |---|---|---|
-| Stack | **Kotlin + Jetpack Compose** | ~4 MB APK, sub-second cold start, no WebView or JS runtime burning CPU. The stated priority is speed and not wasting computation. |
-| Storage | **SQLite via Room** | 3,187 rows now, ~15k/year growth. The day view becomes one indexed query; the Phase 2 dashboard becomes SQL aggregation instead of re-parsing 240 files. |
-| Obsidian | **Standalone, one-time import** | SQLite is the single source of truth. No SAF permissions, no YAML parsing at runtime, no sync conflicts. JSON export covers backup. |
+| Stack | **Kotlin Multiplatform + Compose Multiplatform** | One shared codebase for Android and Linux desktop: UI, domain and data layers are written once. Android stays fully native Compose, so nothing is given up on the phone. |
+| Storage | **SQLite via Room**, local to each device | The day view becomes one indexed query and the dashboard becomes SQL aggregation. The database is a per-device cache — the synced event log is the source of truth. |
+| Obsidian | **Standalone, one-time import** | No SAF permissions, no YAML parsing at runtime. JSON export covers backup. |
+| Desktop | **Compose Multiplatform on the JVM**, packaged as RPM/DEB | Verified: Room 2.8.4 and androidx.sqlite 2.7.0 both publish `jvm` and `linuxX64` variants, so the same schema and DAOs run on both platforms. |
+| Sync | **Per-device append-only event log in a synced folder** | No account, no server, no quota, and transport-agnostic — Syncthing, Nextcloud, git, or a USB stick all work. See [`docs/sync-design.md`](docs/sync-design.md). |
 | Prayer times | **Computed on-device (Adhan)** | Set location + calculation method once; exact times forever, offline, no file to maintain. |
 | Distribution | **GitHub Releases + Obtainium now, F-Droid RFP later** | APK on the phone in days with auto-updates, while the repo stays F-Droid-compliant so the RFP is a formality later. |
 | License | **GPL-3.0** — decided | F-Droid's norm for copyleft apps. Full text in [`LICENSE`](LICENSE). |
@@ -108,6 +110,11 @@ Three points worth stating explicitly:
   DST drift. A log written at 23:50 belongs to that local calendar date.
 - **`recurring_days` is a bitmask** rather than a list table — seven booleans do
   not deserve a join.
+
+Sync adds one column to each table, `hlc TEXT NOT NULL`: the hybrid logical clock
+of the write that produced the row. That is what makes the merge deterministic
+and clock-drift-proof. Nothing else in the schema changes, because the database
+is a projection of the event log rather than the thing being synced.
 
 **Performance budget:** cold start < 400 ms; day switch < 16 ms; zero disk I/O on
 the main thread (all DAO calls are `suspend`/`Flow`); full database under 1 MB.
@@ -205,14 +212,18 @@ Ported from the legacy component, verified item by item before M6 closes:
 ## 8. Repository layout
 
 ```
-app/                       Android application module
-  src/main/kotlin/dev/adambench/habbits/
+shared/                    Kotlin Multiplatform library — all cross-platform code
+  src/commonMain/kotlin/dev/adambench/habbits/
     data/                  Room entities, DAOs, repository
     domain/                scheduling rules, streaks, prayer windows
+    sync/                  event log, hybrid logical clock, merge
     ui/                    Compose screens, theme, components
     di/                    AppContainer
-  src/test/                unit tests (scheduling, import mapping)
-  src/androidTest/         DAO and migration tests
+  src/androidMain/         Android actuals (dynamic colour, file paths)
+  src/jvmMain/             desktop actuals
+  src/commonTest/          scheduling, merge and import-mapping tests
+androidApp/                thin Android host: MainActivity, manifest, resources
+desktopApp/                thin desktop host: window entry point, RPM/DEB packaging
 tools/import/              Node CLI: vault → habits-export.json
 fastlane/metadata/android/en-US/   F-Droid listing, changelogs, screenshots
 docs/legacy/               original Datacore JSX reference
@@ -224,14 +235,15 @@ gradle/libs.versions.toml  pinned dependency versions
 
 | # | Milestone | Done when |
 |---|---|---|
-| **M0** | Toolchain & skeleton | JDK 21 + Android SDK installed; empty Compose app builds and launches on the phone |
+| **M0** | Toolchain & skeleton | JDK 21 + Android SDK installed; shared Compose UI builds for Android **and** desktop |
 | **M1** | Data layer | Room schema, DAOs, repository, unit tests for scheduling rules |
 | **M2** | Import | CLI + in-app import reconcile to exactly 3,187 entries / 238 days / 57 habits |
 | **M3** | Core day view | Categories, cards, toggle, stepper, date navigation — daily use possible |
 | **M4** | Habit management | Editor sheet, all three frequency types, drag-reorder, sleep, delete |
 | **M5** | Prayer times | Adhan integration, location/method settings, sticky headers, auto-scroll |
 | **M6** | Polish | Animations, haptics, theming, accessibility, undo; parity checklist all green |
-| **M7** | Ship | Release keystore, CI release workflow, signed APK, Obtainium tracking the repo |
+| **M6.5** | Sync | Event log, HLC ordering, deterministic merge, compaction; two devices converge |
+| **M7** | Ship | Release keystore, CI release workflow, signed APK + desktop RPM/DEB, Obtainium tracking the repo |
 | **M8** | *(later)* | Metrics and dashboard — the reason the data model is SQL |
 
 M3 is the point at which the app becomes usable in place of Obsidian; everything
@@ -248,6 +260,7 @@ after it is improvement rather than migration.
 | Timezone/DST corrupting dates | `epochDay` from `LocalDate`, never an instant |
 | Application ID churn | Placeholder until M7; settled before the first signed release, after which it can never change |
 | F-Droid build reproducibility | No proprietary dependencies (Adhan is MIT, AndroidX is Apache-2.0); fastlane metadata maintained from M0 |
+| Syncing the SQLite file would corrupt it | The database is never the sync unit — only append-only per-device logs are synced. See `docs/sync-design.md` |
 
 ## 11. Open items
 
