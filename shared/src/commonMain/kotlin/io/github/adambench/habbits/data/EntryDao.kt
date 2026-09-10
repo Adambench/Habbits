@@ -18,6 +18,13 @@ interface EntryDao {
     @Query("SELECT * FROM entries WHERE date BETWEEN :from AND :to ORDER BY date ASC")
     fun observeRange(from: Long, to: Long): Flow<List<EntryEntity>>
 
+    /** One read for the whole stats window; the primary key covers the scan. */
+    @Query("SELECT * FROM entries WHERE date >= :from ORDER BY date ASC")
+    suspend fun getFrom(from: Long): List<EntryEntity>
+
+    @Query("SELECT MIN(date) FROM entries")
+    suspend fun earliestDate(): Long?
+
     /** Backs streaks and the M8 dashboard; served by the (habit_id, date) index. */
     @Query("SELECT * FROM entries WHERE habit_id = :habitId ORDER BY date DESC LIMIT :limit")
     suspend fun getRecentForHabit(habitId: String, limit: Int): List<EntryEntity>

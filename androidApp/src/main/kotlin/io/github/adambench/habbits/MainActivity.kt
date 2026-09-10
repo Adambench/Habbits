@@ -27,6 +27,7 @@ class MainActivity : ComponentActivity() {
 
         val dayModel = container.dayScreenModel(lifecycleScope)
         val manageModel = container.manageScreenModel(lifecycleScope)
+        val statsModel = container.statsScreenModel(lifecycleScope)
 
         setContent {
             // The system picker grants read access to exactly one file, so the
@@ -83,6 +84,7 @@ class MainActivity : ComponentActivity() {
                 AppRoot(
                     dayModel = dayModel,
                     manageModel = manageModel,
+                    statsModel = statsModel,
                     settingsRepository = container.settingsRepository,
                     today = container.today(),
                     onImport = { picker.launch(arrayOf("application/json", "*/*")) },

@@ -11,6 +11,7 @@ import io.github.adambench.habbits.sync.SyncStore
 import io.github.adambench.habbits.sync.VaultImporter
 import io.github.adambench.habbits.ui.DayScreenModel
 import io.github.adambench.habbits.ui.manage.ManageScreenModel
+import io.github.adambench.habbits.ui.stats.StatsScreenModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalTime
@@ -61,6 +62,9 @@ class AppContainer(
         DayScreenModel(repository, settingsRepository, scope, ::today, ::nowTime)
 
     fun importer(): VaultImporter = VaultImporter(database, clock, now)
+
+    fun statsScreenModel(scope: CoroutineScope): StatsScreenModel =
+        StatsScreenModel(repository, database.entryDao(), scope, ::today)
 
     private var store: SyncStore? = null
 

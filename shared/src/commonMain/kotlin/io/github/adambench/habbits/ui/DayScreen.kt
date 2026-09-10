@@ -48,6 +48,7 @@ fun DayScreen(
     /** Supplied where the platform can open a file picker; null hides the action. */
     onImport: (() -> Unit)? = null,
     onManage: (() -> Unit)? = null,
+    onStats: (() -> Unit)? = null,
 ) {
     val state by model.state.collectAsState()
 
@@ -96,6 +97,7 @@ fun DayScreen(
                 onNext = { model.shiftDay(1) },
                 onToday = { model.goToToday() },
                 onManage = onManage,
+                onStats = onStats,
             )
 
             WeekStrip(
@@ -164,6 +166,7 @@ private fun DayHeader(
     onNext: () -> Unit,
     onToday: () -> Unit,
     onManage: (() -> Unit)?,
+    onStats: (() -> Unit)?,
 ) {
     Row(
         modifier = Modifier
@@ -202,6 +205,7 @@ private fun DayHeader(
             }
         }
 
+        if (onStats != null) NavArrow("◔", onStats)
         if (onManage != null) NavArrow("⚙", onManage)
         NavArrow("‹", onPrevious)
         ProgressRing(completed = state.completed, total = state.total)

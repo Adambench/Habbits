@@ -1,0 +1,10 @@
+Stats.
+
+A completion heatmap, streaks, per-habit rates, and breakdowns by time of day
+and day of the week. Reach them from the ◔ button in the day header.
+
+Rates count only the days a habit was actually due, so a Friday-only habit is
+never marked missed on a Tuesday. Sleeping and archived habits are left out of
+the rates and reported separately rather than dragging every number down.
+
+This update changes no data: your habits and history carry over untouched.

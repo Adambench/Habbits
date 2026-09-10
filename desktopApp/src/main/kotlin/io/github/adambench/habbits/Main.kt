@@ -75,6 +75,7 @@ fun main(args: Array<String>) {
     val scope = CoroutineScope(SupervisorJob())
     val dayModel = container.dayScreenModel(scope)
     val manageModel = container.manageScreenModel(scope)
+    val statsModel = container.statsScreenModel(scope)
 
     application {
         Window(
@@ -92,6 +93,7 @@ fun main(args: Array<String>) {
                 AppRoot(
                     dayModel = dayModel,
                     manageModel = manageModel,
+                    statsModel = statsModel,
                     settingsRepository = container.settingsRepository,
                     today = container.today(),
                     onImport = {
