@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -33,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.adambench.habbits.domain.Category
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalTime
 
 @Composable
 fun DayScreen(
@@ -49,6 +52,17 @@ fun DayScreen(
     var expandedHabitId by remember { mutableStateOf<String?>(null) }
     val selected = state.selectedDate
     remember(selected) { expandedHabitId = null }
+
+    val listState = rememberLazyListState()
+
+    // Jump to the window that is live now. Keyed on the day and the window, so
+    // it fires once per day rather than fighting the user's own scrolling.
+    LaunchedEffect(selected, state.liveCategory, state.autoScroll) {
+        val live = state.liveCategory ?: return@LaunchedEffect
+        if (!state.autoScroll) return@LaunchedEffect
+        val index = state.headerIndexOf(live) ?: return@LaunchedEffect
+        listState.animateScrollToItem(index)
+    }
 
     Scaffold(modifier = modifier.fillMaxSize()) { insets ->
         Column(Modifier.fillMaxSize().padding(insets)) {
@@ -75,6 +89,7 @@ fun DayScreen(
                 )
             } else {
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(
                         start = 16.dp, end = 16.dp, top = 8.dp, bottom = 32.dp,
@@ -82,7 +97,7 @@ fun DayScreen(
                 ) {
                     state.sections.forEach { section ->
                         item(key = "header-${section.category.name}") {
-                            CategoryHeader(section.category, section.completed, section.rows.size)
+                            CategoryHeader(section)
                         }
                         items(
                             count = section.rows.size,
@@ -254,34 +269,78 @@ private fun DayChipView(chip: DayChip, modifier: Modifier = Modifier, onClick: (
 }
 
 @Composable
-private fun CategoryHeader(category: Category, completed: Int, total: Int) {
+private fun CategoryHeader(section: CategorySection) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 16.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // The timeline rail dot, carried over from the Obsidian tracker.
+        // The timeline rail dot, carried over from the Obsidian tracker. It
+        // grows and fills for the window that is live right now.
         Box(
             Modifier
-                .size(9.dp)
+                .size(if (section.isLive) 11.dp else 9.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary),
+                .background(
+                    if (section.isLive) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                    },
+                ),
         )
         Spacer(Modifier.width(11.dp))
         Text(
-            text = category.displayName,
+            text = section.category.displayName,
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.weight(1f),
         )
+        section.startsAt?.let { time ->
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = time.hhmm(),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (section.isLive) {
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = "NOW",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                    .padding(horizontal = 5.dp, vertical = 1.dp),
+            )
+        }
+        Spacer(Modifier.weight(1f))
         Text(
-            text = "$completed/$total",
+            text = "${section.completed}/${section.rows.size}",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
+}
+
+private fun LocalTime.hhmm(): String =
+    "${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}"
+
+/**
+ * Index of a category's header in the flat lazy list: every earlier section
+ * contributes its own header plus one item per habit.
+ */
+private fun DayUiState.headerIndexOf(category: Category): Int? {
+    var index = 0
+    for (section in sections) {
+        if (section.category == category) return index
+        index += 1 + section.rows.size
+    }
+    return null
 }
 
 @Composable

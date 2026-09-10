@@ -6,10 +6,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import dev.adambench.habbits.data.SettingsRepository
 import dev.adambench.habbits.ui.manage.ManageScreen
 import dev.adambench.habbits.ui.manage.ManageScreenModel
+import dev.adambench.habbits.ui.settings.SettingsScreen
+import kotlinx.datetime.LocalDate
 
-private enum class Screen { Day, Manage }
+private enum class Screen { Day, Manage, Settings }
 
 /**
  * Two screens and a flag rather than a navigation library: the app has one
@@ -20,6 +23,8 @@ private enum class Screen { Day, Manage }
 fun AppRoot(
     dayModel: DayScreenModel,
     manageModel: ManageScreenModel,
+    settingsRepository: SettingsRepository,
+    today: LocalDate,
     modifier: Modifier = Modifier,
     onImport: (() -> Unit)? = null,
 ) {
@@ -36,6 +41,14 @@ fun AppRoot(
         Screen.Manage -> ManageScreen(
             model = manageModel,
             onDone = { screen = Screen.Day },
+            onSettings = { screen = Screen.Settings },
+            modifier = modifier,
+        )
+
+        Screen.Settings -> SettingsScreen(
+            repository = settingsRepository,
+            today = today,
+            onDone = { screen = Screen.Manage },
             modifier = modifier,
         )
     }

@@ -49,7 +49,7 @@ Two findings drive real design decisions:
 | Obsidian | **Standalone, one-time import** | No SAF permissions, no YAML parsing at runtime. JSON export covers backup. |
 | Desktop | **Compose Multiplatform on the JVM**, packaged as RPM/DEB | Verified: Room 2.8.4 and androidx.sqlite 2.7.0 both publish `jvm` and `linuxX64` variants, so the same schema and DAOs run on both platforms. |
 | Sync | **Per-device append-only event log in a synced folder** | No account, no server, no quota, and transport-agnostic — Syncthing, Nextcloud, git, or a USB stick all work. See [`docs/sync-design.md`](docs/sync-design.md). |
-| Prayer times | **Computed on-device (Adhan)** | Set location + calculation method once; exact times forever, offline, no file to maintain. |
+| Prayer times | **Computed on-device (Adhan)** | adhan2, MIT. Montreal with the North America (ISNA) method by default. Offline, no file to maintain. |
 | Distribution | **GitHub Releases + Obtainium now, F-Droid RFP later** | APK on the phone in days with auto-updates, while the repo stays F-Droid-compliant so the RFP is a formality later. |
 | License | **GPL-3.0** — decided | F-Droid's norm for copyleft apps. Full text in [`LICENSE`](LICENSE). |
 | Application ID | **Deferred** — proposal: `dev.adambench.habbits` | Permanent and unchangeable after first release. Must be fixed before M7 (first signed release), not before M0. |
@@ -279,6 +279,8 @@ after it is improvement rather than migration.
 - **Application ID** — deferred by choice. `dev.adambench.habbits` is the working
   placeholder; it must be settled before M7, since it can never change after the
   first signed release.
-- Location and calculation method for prayer times (city + e.g. MWL, Umm al-Qura, ISNA).
+- ~~Location and calculation method for prayer times~~ — **decided: Montreal,
+  North America (ISNA)**, the common choice in Canada. Mosques differ, so this
+  is changeable in the app and should be checked against a local timetable.
 - ~~Whether the 24 orphan habits should be reviewed individually after import~~ —
   **decided: archived in bulk**, reviewed later in the app.

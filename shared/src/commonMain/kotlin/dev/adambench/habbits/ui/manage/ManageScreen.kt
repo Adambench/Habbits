@@ -39,6 +39,7 @@ import dev.adambench.habbits.ui.theme.accent
 fun ManageScreen(
     model: ManageScreenModel,
     onDone: () -> Unit,
+    onSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by model.state.collectAsState()
@@ -63,6 +64,8 @@ fun ManageScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                TextAction("Times") { onSettings() }
+                Spacer(Modifier.width(8.dp))
                 TextAction("Add", filled = true) { model.createNew() }
                 Spacer(Modifier.width(8.dp))
                 TextAction("Done") { onDone() }

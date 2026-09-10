@@ -5,6 +5,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import dev.adambench.habbits.data.FileSettingsStore
 import dev.adambench.habbits.data.createHabbitsDatabase
 import dev.adambench.habbits.data.defaultDataDirectory
 import dev.adambench.habbits.ui.AppRoot
@@ -24,6 +25,7 @@ fun main(args: Array<String>) {
     val dataDir = defaultDataDirectory()
     val container = AppContainer(
         database = createHabbitsDatabase(dataDir),
+        settingsStore = FileSettingsStore(File(dataDir, "settings.json")),
         deviceId = loadOrCreateDeviceId(dataDir),
     )
     // `--import <file>` runs the migration and exits, so the desktop app can
@@ -76,6 +78,8 @@ fun main(args: Array<String>) {
                 AppRoot(
                     dayModel = dayModel,
                     manageModel = manageModel,
+                    settingsRepository = container.settingsRepository,
+                    today = container.today(),
                     onImport = {
                         val chosen = FileDialog(null as Frame?, "Choose a backup", FileDialog.LOAD)
                             .apply {

@@ -1,7 +1,11 @@
 package dev.adambench.habbits.ui
 
 import dev.adambench.habbits.data.HabitRepository
+import dev.adambench.habbits.data.SettingsRepository
 import dev.adambench.habbits.data.createHabbitsDatabase
+import dev.adambench.habbits.domain.PrayerSettings
+import dev.adambench.habbits.domain.SettingsStore
+import kotlinx.datetime.LocalTime
 import dev.adambench.habbits.domain.Category
 import dev.adambench.habbits.domain.FrequencyType
 import dev.adambench.habbits.domain.Habit
@@ -63,8 +67,25 @@ class DayScreenModelTest {
         )
     }
 
+    /** Prayer times are off here: this suite is about habits, not the clock. */
+    private val settingsRepository = SettingsRepository(
+        object : SettingsStore {
+            private var text: String? = null
+            override fun read(): String? = text
+            override fun write(text: String) {
+                this.text = text
+            }
+        },
+    ).also { it.update(PrayerSettings(enabled = false)) }
+
     private fun model(scope: kotlinx.coroutines.CoroutineScope, today: LocalDate = thursday) =
-        DayScreenModel(repository, scope) { today }
+        DayScreenModel(
+            repository = repository,
+            settingsRepository = settingsRepository,
+            scope = scope,
+            today = { today },
+            nowTime = { LocalTime(12, 0) },
+        )
 
     @Test
     fun shows_only_habits_due_on_the_selected_day() = runTest {

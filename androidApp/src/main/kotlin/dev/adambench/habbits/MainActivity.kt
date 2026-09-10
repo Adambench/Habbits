@@ -54,6 +54,8 @@ class MainActivity : ComponentActivity() {
                 AppRoot(
                     dayModel = dayModel,
                     manageModel = manageModel,
+                    settingsRepository = container.settingsRepository,
+                    today = container.today(),
                     onImport = { picker.launch(arrayOf("application/json", "*/*")) },
                 )
             }

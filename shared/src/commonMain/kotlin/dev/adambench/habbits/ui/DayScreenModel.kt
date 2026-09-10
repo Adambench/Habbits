@@ -2,8 +2,12 @@ package dev.adambench.habbits.ui
 
 import dev.adambench.habbits.data.DayLog
 import dev.adambench.habbits.data.HabitRepository
+import dev.adambench.habbits.data.SettingsRepository
 import dev.adambench.habbits.domain.Category
+import dev.adambench.habbits.domain.DayPrayerTimes
 import dev.adambench.habbits.domain.Habit
+import dev.adambench.habbits.domain.PrayerClock
+import dev.adambench.habbits.domain.PrayerSettings
 import dev.adambench.habbits.domain.isVisibleOn
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -16,6 +20,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalTime
 import kotlinx.datetime.isoDayNumber
 import kotlinx.datetime.minus
 import kotlinx.datetime.plus
@@ -29,8 +34,10 @@ import kotlinx.datetime.plus
 @OptIn(ExperimentalCoroutinesApi::class)
 class DayScreenModel(
     private val repository: HabitRepository,
+    private val settingsRepository: SettingsRepository,
     private val scope: CoroutineScope,
     private val today: () -> LocalDate,
+    private val nowTime: () -> LocalTime,
 ) {
     private val selectedDate = MutableStateFlow(today())
 
@@ -41,8 +48,9 @@ class DayScreenModel(
                 repository.observeActiveHabits(),
                 repository.observeDay(date),
                 repository.observeRange(week.first(), week.last()),
-            ) { habits, log, rangeLogs ->
-                buildState(date, habits, log, rangeLogs)
+                settingsRepository.settings,
+            ) { habits, log, rangeLogs, settings ->
+                buildState(date, habits, log, rangeLogs, settings)
             }
         }
         .stateIn(
@@ -76,7 +84,17 @@ class DayScreenModel(
         habits: List<Habit>,
         log: DayLog,
         rangeLogs: Map<LocalDate, DayLog>,
+        settings: PrayerSettings,
     ): DayUiState {
+        val now = today()
+        val prayerTimes = if (settings.enabled) {
+            PrayerClock.timesFor(date, settings)
+        } else {
+            DayPrayerTimes.Empty
+        }
+        // A window is only "live" on the day it belongs to.
+        val live = if (settings.enabled && date == now) prayerTimes.windowAt(nowTime()) else null
+
         val due = habits.filter { it.isVisibleOn(date) }
         val sections = Category.entries.mapNotNull { category ->
             val rows = due.filter { it.category == category }
@@ -87,10 +105,17 @@ class DayScreenModel(
                         value = log.valueOf(habit.id),
                     )
                 }
-            if (rows.isEmpty()) null else CategorySection(category, rows)
+            if (rows.isEmpty()) {
+                null
+            } else {
+                CategorySection(
+                    category = category,
+                    rows = rows,
+                    startsAt = prayerTimes[category],
+                    isLive = category == live,
+                )
+            }
         }
-
-        val now = today()
         val week = weekOf(date).map { day ->
             val dayHabits = habits.count { it.isVisibleOn(day) }
             val dayLog = rangeLogs[day] ?: DayLog.Empty
@@ -112,6 +137,9 @@ class DayScreenModel(
             week = week,
             isLoading = false,
             hasAnyHabits = habits.isNotEmpty(),
+            prayerTimes = prayerTimes,
+            liveCategory = live,
+            autoScroll = settings.autoScroll,
         )
     }
 

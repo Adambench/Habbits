@@ -1,7 +1,9 @@
 package dev.adambench.habbits
 
 import android.app.Application
+import dev.adambench.habbits.data.FileSettingsStore
 import dev.adambench.habbits.data.createHabbitsDatabase
+import java.io.File
 
 class HabbitsApplication : Application() {
 
@@ -13,6 +15,7 @@ class HabbitsApplication : Application() {
         super.onCreate()
         container = AppContainer(
             database = createHabbitsDatabase(this),
+            settingsStore = FileSettingsStore(File(filesDir, "settings.json")),
             deviceId = loadOrCreateDeviceId(this),
         )
     }

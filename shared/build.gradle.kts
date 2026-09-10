@@ -35,6 +35,7 @@ kotlin {
             api(libs.kotlinx.datetime)
             api(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
+            api(libs.adhan)
         }
 
         commonTest.dependencies {
