@@ -111,6 +111,7 @@ class DayScreenModel(
             sections = sections,
             week = week,
             isLoading = false,
+            hasAnyHabits = habits.isNotEmpty(),
         )
     }
 

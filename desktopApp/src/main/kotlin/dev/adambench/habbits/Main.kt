@@ -14,6 +14,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
+import java.awt.FileDialog
+import java.awt.Frame
 import java.io.File
 import kotlin.system.exitProcess
 
@@ -69,7 +72,25 @@ fun main(args: Array<String>) {
             state = rememberWindowState(size = DpSize(460.dp, 900.dp)),
         ) {
             HabbitsTheme {
-                DayScreen(model)
+                DayScreen(
+                    model = model,
+                    onImport = {
+                        val chosen = FileDialog(null as Frame?, "Choose a backup", FileDialog.LOAD)
+                            .apply {
+                                setFilenameFilter { _, name -> name.endsWith(".json") }
+                                isVisible = true
+                            }
+                            .let { dialog ->
+                                dialog.file?.let { File(dialog.directory ?: ".", it) }
+                            }
+                        if (chosen != null && chosen.isFile) {
+                            scope.launch {
+                                runCatching { container.importer().import(chosen.readText()) }
+                                    .onFailure { System.err.println("Import failed: ${'$'}{it.message}") }
+                            }
+                        }
+                    },
+                )
             }
         }
     }

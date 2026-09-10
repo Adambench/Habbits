@@ -3,6 +3,7 @@ package dev.adambench.habbits
 import dev.adambench.habbits.data.HabbitsDatabase
 import dev.adambench.habbits.data.HabitRepository
 import dev.adambench.habbits.sync.HlcGenerator
+import dev.adambench.habbits.sync.VaultImporter
 import dev.adambench.habbits.ui.DayScreenModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.datetime.LocalDate
@@ -19,10 +20,12 @@ class AppContainer(
     deviceId: String,
     private val now: () -> Long = { Clock.System.now().toEpochMilliseconds() },
 ) {
+    private val clock = HlcGenerator(deviceId, now)
+
     val repository: HabitRepository = HabitRepository(
         habitDao = database.habitDao(),
         entryDao = database.entryDao(),
-        clock = HlcGenerator(deviceId, now),
+        clock = clock,
         now = now,
     )
 
@@ -31,6 +34,8 @@ class AppContainer(
 
     fun dayScreenModel(scope: CoroutineScope): DayScreenModel =
         DayScreenModel(repository, scope, ::today)
+
+    fun importer(): VaultImporter = VaultImporter(database, clock, now)
 
     fun close() = database.close()
 }

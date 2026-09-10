@@ -35,7 +35,12 @@ import dev.adambench.habbits.domain.Category
 import kotlinx.datetime.LocalDate
 
 @Composable
-fun DayScreen(model: DayScreenModel, modifier: Modifier = Modifier) {
+fun DayScreen(
+    model: DayScreenModel,
+    modifier: Modifier = Modifier,
+    /** Supplied where the platform can open a file picker; null hides the action. */
+    onImport: (() -> Unit)? = null,
+) {
     val state by model.state.collectAsState()
 
     // Which measured habit has its stepper open. One at a time, and it closes
@@ -61,7 +66,11 @@ fun DayScreen(model: DayScreenModel, modifier: Modifier = Modifier) {
             Spacer(Modifier.height(4.dp))
 
             if (state.sections.isEmpty()) {
-                EmptyDay(isLoading = state.isLoading)
+                EmptyDay(
+                    isLoading = state.isLoading,
+                    hasAnyHabits = state.hasAnyHabits,
+                    onImport = onImport,
+                )
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
@@ -272,12 +281,35 @@ private fun CategoryHeader(category: Category, completed: Int, total: Int) {
 }
 
 @Composable
-private fun EmptyDay(isLoading: Boolean) {
+private fun EmptyDay(isLoading: Boolean, hasAnyHabits: Boolean, onImport: (() -> Unit)?) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(
-            text = if (isLoading) "Loading…" else "Nothing scheduled for this day.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(32.dp),
+        ) {
+            Text(
+                text = when {
+                    isLoading -> "Loading…"
+                    !hasAnyHabits -> "No habits yet."
+                    else -> "Nothing scheduled for this day."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (!isLoading && !hasAnyHabits && onImport != null) {
+                Text(
+                    text = "Import a backup",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.primary)
+                        .clickable(onClick = onImport)
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                )
+            }
+        }
     }
 }

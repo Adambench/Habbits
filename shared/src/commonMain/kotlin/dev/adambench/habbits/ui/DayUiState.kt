@@ -36,6 +36,8 @@ data class DayUiState(
     val sections: List<CategorySection> = emptyList(),
     val week: List<DayChip> = emptyList(),
     val isLoading: Boolean = true,
+    /** False only when the database holds no habits at all, not merely none due today. */
+    val hasAnyHabits: Boolean = false,
 ) {
     val completed: Int get() = sections.sumOf { it.completed }
     val total: Int get() = sections.sumOf { it.rows.size }
