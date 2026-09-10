@@ -1,0 +1,5 @@
+First release.
+
+Day view along the prayer timeline, habit management with three scheduling
+modes, on-device prayer times, import from an Obsidian vault export, and
+multi-device sync over any folder you already replicate.

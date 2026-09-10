@@ -1,0 +1,16 @@
+Habbits is an offline-first habit logger built around the run of the day: Before
+Fajr, Fajr, Shuruq, Dhuhr, Asr, Maghrib, Isha, and anything that fits anywhere.
+
+Prayer times are computed on the device from your location and calculation
+method, so there is nothing to download and no timetable to keep up to date. The
+window that is live right now is marked, and the day opens on it.
+
+Habits can be simple checks or measured amounts with their own units and step
+sizes, scheduled every day, on chosen weekdays, or every few days.
+
+Devices sync through an append-only log in any folder you already replicate —
+Syncthing, Nextcloud, a git checkout, a USB stick. There is no account, no
+server and no quota, and each device only ever writes its own file, so there is
+nothing to conflict.
+
+The app requests no Android permissions. It never reaches the network.

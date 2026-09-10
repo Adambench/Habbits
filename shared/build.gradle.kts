@@ -16,7 +16,7 @@ kotlin {
     }
 
     android {
-        namespace = "dev.adambench.habbits.shared"
+        namespace = "io.github.adambench.habbits.shared"
         compileSdk = 37
         minSdk = 26
     }

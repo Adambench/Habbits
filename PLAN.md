@@ -52,7 +52,7 @@ Two findings drive real design decisions:
 | Prayer times | **Computed on-device (Adhan)** | adhan2, MIT. Montreal with the North America (ISNA) method by default. Offline, no file to maintain. |
 | Distribution | **GitHub Releases + Obtainium now, F-Droid RFP later** | APK on the phone in days with auto-updates, while the repo stays F-Droid-compliant so the RFP is a formality later. |
 | License | **GPL-3.0** — decided | F-Droid's norm for copyleft apps. Full text in [`LICENSE`](LICENSE). |
-| Application ID | **Deferred** — proposal: `dev.adambench.habbits` | Permanent and unchangeable after first release. Must be fixed before M7 (first signed release), not before M0. |
+| Application ID | **`io.github.adambench.habbits`** | Settled at M7. Permanent: an app ID change is a different app, with no upgrade path and no data migration. |
 
 **Dependency injection:** manual (a small `AppContainer`). Hilt's annotation
 processing would add build time and method count for an app with roughly six
@@ -276,9 +276,11 @@ after it is improvement rather than migration.
 
 ## 11. Open items
 
-- **Application ID** — deferred by choice. `dev.adambench.habbits` is the working
-  placeholder; it must be settled before M7, since it can never change after the
-  first signed release.
+- ~~Application ID~~ — **settled: `io.github.adambench.habbits`**. GitHub owns
+  the `io.github` namespace and the username is one the user controls, which is
+  the standard choice without a personal domain. The Kotlin packages were
+  renamed to match rather than leaving `dev.adambench.*` claiming a domain
+  nobody owns.
 - ~~Location and calculation method for prayer times~~ — **decided: Montreal,
   North America (ISNA)**, the common choice in Canada. Mosques differ, so this
   is changeable in the app and should be checked against a local timetable.
