@@ -31,6 +31,16 @@ class HabitRepository(
     fun observeDay(date: LocalDate): Flow<DayLog> =
         entryDao.observeDay(date.toEpochDays()).map(DayLog::from)
 
+    /**
+     * Completions for a date range, grouped by day — one query for the whole
+     * week strip rather than seven.
+     */
+    fun observeRange(from: LocalDate, to: LocalDate): Flow<Map<LocalDate, DayLog>> =
+        entryDao.observeRange(from.toEpochDays(), to.toEpochDays()).map { rows ->
+            rows.groupBy { LocalDate.fromEpochDays(it.date) }
+                .mapValues { (_, dayRows) -> DayLog.from(dayRows) }
+        }
+
     suspend fun getHabits(): List<Habit> = habitDao.getAll().map(HabitEntity::toDomain)
 
     suspend fun saveHabit(habit: Habit) {
