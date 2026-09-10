@@ -49,6 +49,7 @@ data class PrayerSettings(
     /** Jump to the prayer window that is live right now when opening today. */
     val autoScroll: Boolean = true,
     val appearance: Appearance = Appearance(),
+    val sync: SyncSettings = SyncSettings(),
 ) {
     companion object {
         const val MONTREAL_LATITUDE = 45.5019

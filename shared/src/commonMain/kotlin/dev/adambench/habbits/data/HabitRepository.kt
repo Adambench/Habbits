@@ -2,7 +2,13 @@ package dev.adambench.habbits.data
 
 import dev.adambench.habbits.domain.Habit
 import dev.adambench.habbits.domain.HabitStatus
+import dev.adambench.habbits.sync.EntryCleared
+import dev.adambench.habbits.sync.EntrySet
+import dev.adambench.habbits.sync.HabitDeleted
+import dev.adambench.habbits.sync.HabitSaved
 import dev.adambench.habbits.sync.HlcGenerator
+import dev.adambench.habbits.sync.SyncJournal
+import dev.adambench.habbits.sync.toExport
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.datetime.LocalDate
@@ -19,6 +25,7 @@ class HabitRepository(
     private val entryDao: EntryDao,
     private val clock: HlcGenerator,
     private val now: () -> Long,
+    private val journal: SyncJournal = SyncJournal.None,
 ) {
 
     fun observeHabits(): Flow<List<Habit>> =
@@ -45,15 +52,15 @@ class HabitRepository(
 
     suspend fun saveHabit(habit: Habit) {
         val existing = habitDao.getById(habit.id)
-        habitDao.upsert(
-            habit.toEntity(
-                hlc = clock.next().encode(),
-                createdAt = existing?.createdAt ?: now(),
-            ),
-        )
+        val hlc = clock.next().encode()
+        habitDao.upsert(habit.toEntity(hlc = hlc, createdAt = existing?.createdAt ?: now()))
+        journal.record(HabitSaved(habit.toExport(), hlc))
     }
 
-    suspend fun deleteHabit(id: String) = habitDao.deleteById(id)
+    suspend fun deleteHabit(id: String) {
+        habitDao.deleteById(id)
+        journal.record(HabitDeleted(id, clock.next().encode()))
+    }
 
     /**
      * Persists a new running order.
@@ -67,11 +74,15 @@ class HabitRepository(
         ordered.forEachIndexed { index, habit ->
             val row = current[habit.id] ?: return@forEachIndexed
             if (row.sortOrder != index || row.category != habit.category.ordinal) {
+                val hlc = clock.next().encode()
                 habitDao.updatePlacement(
                     id = habit.id,
                     category = habit.category.ordinal,
                     sortOrder = index,
-                    hlc = clock.next().encode(),
+                    hlc = hlc,
+                )
+                journal.record(
+                    HabitSaved(habit.copy(category = habit.category, sortOrder = index).toExport(), hlc),
                 )
             }
         }
@@ -92,18 +103,22 @@ class HabitRepository(
     suspend fun toggle(date: LocalDate, habitId: String) {
         val epochDay = date.toEpochDays()
         if (entryDao.get(epochDay, habitId) != null) {
+            val hlc = clock.next().encode()
             entryDao.delete(epochDay, habitId)
+            journal.record(EntryCleared(habitId, epochDay, hlc))
         } else {
             val habit = habitDao.getById(habitId)
+            val hlc = clock.next().encode()
             entryDao.upsert(
                 EntryEntity(
                     date = epochDay,
                     habitId = habitId,
                     value = habit?.defaultValue,
                     loggedAt = now(),
-                    hlc = clock.next().encode(),
+                    hlc = hlc,
                 ),
             )
+            journal.record(EntrySet(habitId, epochDay, habit?.defaultValue, hlc))
         }
     }
 
@@ -117,8 +132,10 @@ class HabitRepository(
         val epochDay = date.toEpochDays()
         val current = entryDao.get(epochDay, habitId)?.value ?: 0
         val next = (current + amount).coerceAtLeast(0)
+        val hlc = clock.next().encode()
         if (next == 0) {
             entryDao.delete(epochDay, habitId)
+            journal.record(EntryCleared(habitId, epochDay, hlc))
         } else {
             entryDao.upsert(
                 EntryEntity(
@@ -126,9 +143,10 @@ class HabitRepository(
                     habitId = habitId,
                     value = next,
                     loggedAt = now(),
-                    hlc = clock.next().encode(),
+                    hlc = hlc,
                 ),
             )
+            journal.record(EntrySet(habitId, epochDay, next, hlc))
         }
     }
 
@@ -146,8 +164,10 @@ class HabitRepository(
      */
     suspend fun restore(date: LocalDate, habitId: String, wasCompleted: Boolean, value: Int?) {
         val epochDay = date.toEpochDays()
+        val hlc = clock.next().encode()
         if (!wasCompleted) {
             entryDao.delete(epochDay, habitId)
+            journal.record(EntryCleared(habitId, epochDay, hlc))
         } else {
             entryDao.upsert(
                 EntryEntity(
@@ -155,9 +175,10 @@ class HabitRepository(
                     habitId = habitId,
                     value = value,
                     loggedAt = now(),
-                    hlc = clock.next().encode(),
+                    hlc = hlc,
                 ),
             )
+            journal.record(EntrySet(habitId, epochDay, value, hlc))
         }
     }
 

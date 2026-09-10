@@ -32,7 +32,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import dev.adambench.habbits.data.SettingsRepository
+import kotlinx.coroutines.launch
 import dev.adambench.habbits.domain.AsrMadhab
 import dev.adambench.habbits.domain.ThemeMode
 import dev.adambench.habbits.domain.Category
@@ -47,8 +52,12 @@ fun SettingsScreen(
     today: LocalDate,
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
+    onPickSyncFolder: (() -> Unit)? = null,
+    onSyncNow: (suspend () -> String)? = null,
 ) {
     val settings by repository.settings.collectAsState()
+    val scope = rememberCoroutineScope()
+    var syncStatus by remember { mutableStateOf<String?>(null) }
     // Recomputed as the settings change, so the effect of a choice is visible
     // before leaving the screen.
     val preview = if (settings.enabled) PrayerClock.timesFor(today, settings) else null
@@ -193,6 +202,49 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
+            Label("Sync")
+            Text(
+                text = "Point this at any folder that something replicates — Syncthing, " +
+                    "Nextcloud, a git checkout, a USB stick. Each device only ever writes " +
+                    "its own file, so there is nothing to conflict.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            SwitchRow("Sync between devices", settings.sync.enabled) {
+                repository.update(settings.copy(sync = settings.sync.copy(enabled = it)))
+            }
+            if (settings.sync.enabled) {
+                Text(
+                    text = settings.sync.folderLabel.ifBlank {
+                        settings.sync.folder.ifBlank { "No folder chosen yet" }
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (onPickSyncFolder != null) {
+                        SmallButton("Choose folder") { onPickSyncFolder() }
+                    }
+                    if (onSyncNow != null && settings.sync.isConfigured) {
+                        SmallButton("Sync now") {
+                            scope.launch {
+                                syncStatus = "Syncing…"
+                                syncStatus = runCatching { onSyncNow() }
+                                    .getOrElse { "Sync failed: ${it.message}" }
+                            }
+                        }
+                    }
+                }
+                syncStatus?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
             Label("Appearance")
             Chips(
                 options = ThemeMode.entries,
@@ -215,6 +267,26 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(8.dp))
         }
+    }
+}
+
+@Composable
+private fun SmallButton(text: String, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .heightIn(min = 40.dp)
+            .padding(horizontal = 14.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.primary,
+        )
     }
 }
 

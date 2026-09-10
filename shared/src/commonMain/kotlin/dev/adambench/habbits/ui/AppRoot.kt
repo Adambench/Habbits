@@ -27,6 +27,8 @@ fun AppRoot(
     today: LocalDate,
     modifier: Modifier = Modifier,
     onImport: (() -> Unit)? = null,
+    onPickSyncFolder: (() -> Unit)? = null,
+    onSyncNow: (suspend () -> String)? = null,
 ) {
     var screen by remember { mutableStateOf(Screen.Day) }
 
@@ -50,6 +52,8 @@ fun AppRoot(
             today = today,
             onDone = { screen = Screen.Manage },
             modifier = modifier,
+            onPickSyncFolder = onPickSyncFolder,
+            onSyncNow = onSyncNow,
         )
     }
 }

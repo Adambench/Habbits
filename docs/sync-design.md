@@ -74,3 +74,24 @@ snapshot into `snapshot-*.json` so the working set stays small on a phone.
 An event log makes the M8 dashboard cheaper, not harder: "when did this habit
 actually get logged" is answerable from the log, while the SQLite view stays a
 fast materialised projection for the day screen.
+
+## As built
+
+The engine lives in `shared/src/commonMain/kotlin/dev/adambench/habbits/sync/`:
+`SyncEvent` (the four event types), `BufferedSyncJournal` (records writes,
+buffers them, compacts), and `SyncMerger` (folds every log into the database).
+
+Two store implementations back it. Desktop uses `FileSyncStore` over a plain
+directory. Android uses `SafSyncStore`, which goes through the Storage Access
+Framework: the user grants access to exactly one folder tree, so reaching a
+Syncthing or Nextcloud folder still needs **no storage permission**.
+
+Writes are buffered rather than hitting the disk per tap, and flushed when the
+app pauses, when the window closes, and before every merge.
+
+`SyncConvergenceTest` covers the claims this document makes: two devices reach
+identical state from independent edits; the later write wins a genuine conflict;
+a cleared entry is not resurrected by a device that was offline when it was
+cleared; merging twice changes nothing; a corrupt line is counted and skipped
+rather than aborting the merge; and compaction shrinks a log without changing
+what a fresh device computes from it.

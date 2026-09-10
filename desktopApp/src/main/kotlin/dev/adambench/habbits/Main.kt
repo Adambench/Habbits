@@ -7,6 +7,7 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import dev.adambench.habbits.data.FileSettingsStore
 import dev.adambench.habbits.data.createHabbitsDatabase
+import dev.adambench.habbits.sync.FileSyncStore
 import dev.adambench.habbits.data.defaultDataDirectory
 import dev.adambench.habbits.ui.AppRoot
 import dev.adambench.habbits.sync.VaultImporter
@@ -15,7 +16,9 @@ import androidx.compose.runtime.getValue
 import dev.adambench.habbits.ui.theme.HabbitsTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.launch
 import java.awt.FileDialog
@@ -25,11 +28,18 @@ import kotlin.system.exitProcess
 
 fun main(args: Array<String>) {
     val dataDir = defaultDataDirectory()
+    val deviceId = loadOrCreateDeviceId(dataDir)
     val container = AppContainer(
         database = createHabbitsDatabase(dataDir),
         settingsStore = FileSettingsStore(File(dataDir, "settings.json")),
-        deviceId = loadOrCreateDeviceId(dataDir),
+        deviceId = deviceId,
+        syncStoreFor = { folder ->
+            File(folder).takeIf { it.isDirectory }?.let { FileSyncStore(it, deviceId) }
+        },
     )
+    container.settingsRepository.settings.value.sync
+        .takeIf { it.isConfigured }
+        ?.let { container.bindSync(it.folder) }
     // `--import <file>` runs the migration and exits, so the desktop app can
     // load a vault export without a running UI.
     val importIndex = args.indexOf("--import")
@@ -69,6 +79,7 @@ fun main(args: Array<String>) {
     application {
         Window(
             onCloseRequest = {
+                container.flushSync()
                 scope.cancel()
                 container.close()
                 exitApplication()
@@ -97,6 +108,41 @@ fun main(args: Array<String>) {
                                 runCatching { container.importer().import(chosen.readText()) }
                                     .onFailure { System.err.println("Import failed: ${'$'}{it.message}") }
                             }
+                        }
+                    },
+                    onPickSyncFolder = {
+                        // A directory chooser, which AWT only offers through this flag.
+                        System.setProperty("apple.awt.fileDialogForDirectories", "true")
+                        val dialog = FileDialog(null as Frame?, "Choose a sync folder", FileDialog.LOAD)
+                        dialog.isVisible = true
+                        val chosen = dialog.directory?.let { dir ->
+                            dialog.file?.let { File(dir, it) } ?: File(dir)
+                        }
+                        System.setProperty("apple.awt.fileDialogForDirectories", "false")
+                        val folder = chosen?.let { if (it.isDirectory) it else it.parentFile }
+                        if (folder != null && folder.isDirectory) {
+                            val repo = container.settingsRepository
+                            val current = repo.settings.value
+                            repo.update(
+                                current.copy(
+                                    sync = current.sync.copy(
+                                        enabled = true,
+                                        folder = folder.absolutePath,
+                                        folderLabel = folder.absolutePath,
+                                    ),
+                                ),
+                            )
+                            container.bindSync(folder.absolutePath)
+                        }
+                    },
+                    onSyncNow = {
+                        val report = withContext(Dispatchers.IO) { container.syncNow() }
+                        if (report == null) {
+                            "No sync folder configured"
+                        } else {
+                            "Merged ${report.eventsApplied} changes — " +
+                                "${report.habits} habits, ${report.entries} completions" +
+                                if (report.malformed > 0) " (${report.malformed} bad lines)" else ""
                         }
                     },
                 )

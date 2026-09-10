@@ -38,6 +38,10 @@ kotlin {
             api(libs.adhan)
         }
 
+        androidMain.dependencies {
+            implementation(libs.androidx.documentfile)
+        }
+
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
