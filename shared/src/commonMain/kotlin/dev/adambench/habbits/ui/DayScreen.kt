@@ -21,6 +21,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -50,10 +54,27 @@ fun DayScreen(
     // Which measured habit has its stepper open. One at a time, and it closes
     // when the day changes so a stale row cannot stay expanded.
     var expandedHabitId by remember { mutableStateOf<String?>(null) }
+    var describedHabitId by remember { mutableStateOf<String?>(null) }
     val selected = state.selectedDate
-    remember(selected) { expandedHabitId = null }
+    remember(selected) {
+        expandedHabitId = null
+        describedHabitId = null
+    }
 
     val listState = rememberLazyListState()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(model) {
+        model.messages.collect { message ->
+            val result = snackbarHostState.showSnackbar(
+                message = message.text,
+                actionLabel = if (message.undo != null) "Undo" else null,
+                duration = SnackbarDuration.Short,
+                withDismissAction = false,
+            )
+            if (result == SnackbarResult.ActionPerformed) message.undo?.invoke()
+        }
+    }
 
     // Jump to the window that is live now. Keyed on the day and the window, so
     // it fires once per day rather than fighting the user's own scrolling.
@@ -64,7 +85,10 @@ fun DayScreen(
         listState.animateScrollToItem(index)
     }
 
-    Scaffold(modifier = modifier.fillMaxSize()) { insets ->
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+    ) { insets ->
         Column(Modifier.fillMaxSize().padding(insets)) {
             DayHeader(
                 state = state,
@@ -108,6 +132,12 @@ fun DayScreen(
                                 HabitCard(
                                     row = row,
                                     isExpanded = expandedHabitId == row.habit.id,
+                                    showDescription = describedHabitId == row.habit.id,
+                                    hapticsEnabled = state.hapticsEnabled,
+                                    onLongPress = {
+                                        describedHabitId =
+                                            if (describedHabitId == row.habit.id) null else row.habit.id
+                                    },
                                     onToggle = {
                                         expandedHabitId = null
                                         model.toggle(row.habit.id)

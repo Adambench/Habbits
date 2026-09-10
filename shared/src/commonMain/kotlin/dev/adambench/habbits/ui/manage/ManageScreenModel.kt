@@ -5,6 +5,7 @@ import dev.adambench.habbits.domain.Category
 import dev.adambench.habbits.domain.Habit
 import dev.adambench.habbits.domain.HabitStatus
 import dev.adambench.habbits.domain.movedBy
+import dev.adambench.habbits.domain.movedTo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -99,6 +100,15 @@ class ManageScreenModel(
 
     fun setStatus(habit: Habit, status: HabitStatus) {
         scope.launch { repository.setStatus(habit.id, status) }
+    }
+
+    /** Drop [habitId] where [targetId] currently sits. */
+    fun moveTo(habitId: String, targetId: String) {
+        scope.launch {
+            val current = repository.getHabits()
+            val reordered = current.movedTo(habitId, targetId)
+            if (reordered !== current) repository.applyOrder(reordered)
+        }
     }
 
     fun move(habitId: String, direction: Int) {

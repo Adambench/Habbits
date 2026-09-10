@@ -181,7 +181,7 @@ the edit-mode toggle. The changes below are the "make it better" half.
 5. **Drag-to-reorder** in edit mode, replacing `↑`/`↓` (which currently cost two
    taps per position and can silently move a habit across categories). Arrow
    buttons stay as an accessibility fallback.
-6. **Swipe gestures** on a card: right to complete, left to sleep.
+6. ~~**Swipe gestures** on a card~~ — dropped. Tap already completes, so swipe-to-complete duplicates it, and a swipe that sleeps a habit is a destructive action sitting under an easy accidental gesture. Sleeping stays in the management screen.
 
 **Information**
 
@@ -216,7 +216,7 @@ Ported from the legacy component, verified item by item before M6 closes:
 - [ ] Reorder within and across categories
 - [ ] Create, edit, delete a habit
 - [ ] Date navigation and "back to today"
-- [ ] Auto-scroll to the current prayer window (toggleable)
+- [x] Auto-scroll to the current prayer window (toggleable)
 - [ ] The `migrateTrueToDuration` "Convert 'True'" tool → becomes an explicit
       import-time choice plus a settings action, rather than a destructive
       vault-wide rewrite

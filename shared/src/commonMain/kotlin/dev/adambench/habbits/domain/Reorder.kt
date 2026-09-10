@@ -44,3 +44,31 @@ fun List<Habit>.movedBy(habitId: String, direction: Int): List<Habit> {
         .flatMap { groups.getValue(it) }
         .mapIndexed { index, h -> h.copy(sortOrder = index) }
 }
+
+/**
+ * Moves one habit to the position currently held by another — what a drag
+ * gesture needs, where [movedBy] only steps one place at a time.
+ *
+ * The moved habit adopts the target's category, so dragging into another
+ * prayer window reassigns it the way dropping it there implies.
+ */
+fun List<Habit>.movedTo(habitId: String, targetId: String): List<Habit> {
+    if (habitId == targetId) return this
+
+    val ordered = Category.entries.flatMap { category -> filter { it.category == category } }
+    val from = ordered.indexOfFirst { it.id == habitId }
+    val to = ordered.indexOfFirst { it.id == targetId }
+    if (from < 0 || to < 0) return this
+
+    val target = ordered[to]
+    val working = ordered.toMutableList()
+    val moved = working.removeAt(from).copy(category = target.category)
+    // Removing first shifts everything after it down by one, so the insertion
+    // point has to be taken from the list as it is now, not as it was.
+    val insertAt = working.indexOfFirst { it.id == targetId }.let {
+        if (from < to) it + 1 else it
+    }
+    working.add(insertAt.coerceIn(0, working.size), moved)
+
+    return working.mapIndexed { index, h -> h.copy(sortOrder = index) }
+}

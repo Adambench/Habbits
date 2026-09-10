@@ -11,7 +11,10 @@ import dev.adambench.habbits.domain.PrayerSettings
 import dev.adambench.habbits.domain.isVisibleOn
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -40,6 +43,16 @@ class DayScreenModel(
     private val nowTime: () -> LocalTime,
 ) {
     private val selectedDate = MutableStateFlow(today())
+
+    /**
+     * One-shot messages for the snackbar. Replayed to nobody and dropped when
+     * they pile up, so an undo prompt cannot resurface after it is stale.
+     */
+    private val _messages = MutableSharedFlow<DayMessage>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    val messages = _messages.asSharedFlow()
 
     val state: StateFlow<DayUiState> = selectedDate
         .flatMapLatest { date ->
@@ -72,7 +85,24 @@ class DayScreenModel(
     }
 
     fun toggle(habitId: String) {
-        scope.launch { repository.toggle(selectedDate.value, habitId) }
+        val date = selectedDate.value
+        scope.launch {
+            val wasCompleted = repository.isCompleted(date, habitId)
+            val previousValue = repository.valueOf(date, habitId)
+            repository.toggle(date, habitId)
+            // Un-completing deletes the row, so the prompt has to carry enough
+            // to put it back exactly as it was.
+            _messages.tryEmit(
+                DayMessage(
+                    text = if (wasCompleted) "Marked not done" else "Marked done",
+                    undo = {
+                        scope.launch {
+                            repository.restore(date, habitId, wasCompleted, previousValue)
+                        }
+                    },
+                ),
+            )
+        }
     }
 
     fun step(habitId: String, amount: Int) {
@@ -140,6 +170,7 @@ class DayScreenModel(
             prayerTimes = prayerTimes,
             liveCategory = live,
             autoScroll = settings.autoScroll,
+            hapticsEnabled = settings.appearance.haptics,
         )
     }
 

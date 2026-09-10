@@ -67,3 +67,44 @@ class SettingsRepositoryTest {
         assertTrue(strays.isEmpty(), "left behind: $strays")
     }
 }
+
+class AppearanceSettingsTest {
+
+    private val dir = File(System.getProperty("java.io.tmpdir"), "habbits-appearance-${System.nanoTime()}")
+    private val file = File(dir, "settings.json")
+
+    @AfterTest
+    fun tearDown() {
+        dir.deleteRecursively()
+    }
+
+    @Test
+    fun appearance_defaults_are_sensible_and_persist() {
+        val repo = SettingsRepository(FileSettingsStore(file))
+        val defaults = repo.settings.value.appearance
+        assertEquals(dev.adambench.habbits.domain.ThemeMode.System, defaults.themeMode)
+        assertTrue(defaults.haptics)
+
+        repo.update(
+            repo.settings.value.copy(
+                appearance = defaults.copy(
+                    themeMode = dev.adambench.habbits.domain.ThemeMode.Black,
+                    haptics = false,
+                ),
+            ),
+        )
+        val reloaded = SettingsRepository(FileSettingsStore(file)).settings.value.appearance
+        assertEquals(dev.adambench.habbits.domain.ThemeMode.Black, reloaded.themeMode)
+        assertTrue(!reloaded.haptics)
+    }
+
+    @Test
+    fun settings_saved_before_appearance_existed_still_load() {
+        dir.mkdirs()
+        // A file written by an earlier build has no appearance block at all.
+        file.writeText("""{"locationName":"Montreal","latitude":45.5019,"longitude":-73.5674}""")
+        val loaded = SettingsRepository(FileSettingsStore(file)).settings.value
+        assertEquals("Montreal", loaded.locationName)
+        assertEquals(dev.adambench.habbits.domain.ThemeMode.System, loaded.appearance.themeMode)
+    }
+}

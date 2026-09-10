@@ -34,6 +34,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.adambench.habbits.data.SettingsRepository
 import dev.adambench.habbits.domain.AsrMadhab
+import dev.adambench.habbits.domain.ThemeMode
 import dev.adambench.habbits.domain.Category
 import dev.adambench.habbits.domain.HighLatitudeRule
 import dev.adambench.habbits.domain.PrayerClock
@@ -67,7 +68,7 @@ fun SettingsScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "Prayer times",
+                    text = "Settings",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),
@@ -191,6 +192,26 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+
+            Label("Appearance")
+            Chips(
+                options = ThemeMode.entries,
+                selected = settings.appearance.themeMode,
+                label = { it.displayName },
+            ) { repository.update(settings.copy(appearance = settings.appearance.copy(themeMode = it))) }
+            Text(
+                text = "Black switches the background to true black, which costs no power " +
+                    "on an OLED screen.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            SwitchRow("Use system colours", settings.appearance.dynamicColor) {
+                repository.update(settings.copy(appearance = settings.appearance.copy(dynamicColor = it)))
+            }
+            SwitchRow("Vibrate on tap", settings.appearance.haptics) {
+                repository.update(settings.copy(appearance = settings.appearance.copy(haptics = it)))
+            }
 
             Spacer(Modifier.height(8.dp))
         }

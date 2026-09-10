@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -28,6 +29,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -43,6 +46,13 @@ fun ManageScreen(
     modifier: Modifier = Modifier,
 ) {
     val state by model.state.collectAsState()
+    val listState = rememberLazyListState()
+    val habitKeys = state.sections.flatMapTo(mutableSetOf()) { section ->
+        section.habits.map { it.id }
+    }
+    val reorder = rememberReorderState(listState) { from, to ->
+        model.moveTo(from as String, to as String)
+    }
 
     Scaffold(modifier = modifier.fillMaxSize()) { insets ->
         Column(Modifier.fillMaxSize().padding(insets)) {
@@ -84,6 +94,7 @@ fun ManageScreen(
             }
 
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 32.dp),
             ) {
@@ -99,11 +110,22 @@ fun ManageScreen(
                     }
                     items(count = section.habits.size, key = { section.habits[it].id }) { i ->
                         val habit = section.habits[i]
+                        val isDragged = reorder.draggedKey == habit.id
                         ManageRow(
                             habit = habit,
+                            isDragged = isDragged,
                             onEdit = { model.edit(habit) },
                             onSleep = { model.toggleSleep(habit) },
                             onMove = { model.move(habit.id, it) },
+                            modifier = Modifier
+                                .zIndex(if (isDragged) 1f else 0f)
+                                .layout { measurable, constraints ->
+                                    val placeable = measurable.measure(constraints)
+                                    layout(placeable.width, placeable.height) {
+                                        placeable.placeRelative(0, reorder.offsetFor(habit.id))
+                                    }
+                                }
+                                .reorderable(reorder, habit.id) { it in habitKeys },
                         )
                     }
                 }
@@ -126,18 +148,34 @@ fun ManageScreen(
 @Composable
 private fun ManageRow(
     habit: Habit,
+    isDragged: Boolean,
     onEdit: () -> Unit,
     onSleep: () -> Unit,
     onMove: (Int) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val dimmed = habit.status != HabitStatus.Active
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 3.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
+            .background(
+                if (isDragged) {
+                    MaterialTheme.colorScheme.surfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.surface
+                },
+            )
+            .border(
+                1.dp,
+                if (isDragged) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.outlineVariant
+                },
+                RoundedCornerShape(10.dp),
+            )
             .clickable(onClick = onEdit)
             .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -174,6 +212,12 @@ private fun ManageRow(
             )
         }
 
+        Text(
+            text = "⠿",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.outlineVariant,
+            modifier = Modifier.padding(end = 2.dp),
+        )
         IconAction(if (habit.status == HabitStatus.Sleeping) "☀" else "☾", onSleep)
         IconAction("↑") { onMove(-1) }
         IconAction("↓") { onMove(1) }

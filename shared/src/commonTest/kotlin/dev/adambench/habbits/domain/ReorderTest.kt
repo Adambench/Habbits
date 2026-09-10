@@ -79,3 +79,51 @@ class ReorderTest {
         assertEquals(Category.BeforeFajr, moved.first { it.id == "a" }.category)
     }
 }
+
+class ReorderToTest {
+
+    private fun habit(id: String, category: Category, order: Int) =
+        Habit(id = id, label = id, category = category, sortOrder = order)
+
+    private val habits = listOf(
+        habit("a", Category.BeforeFajr, 0),
+        habit("b", Category.BeforeFajr, 1),
+        habit("c", Category.BeforeFajr, 2),
+        habit("d", Category.Fajr, 3),
+    )
+
+    private fun ids(list: List<Habit>) = list.map { it.id }
+
+    @Test
+    fun dragging_downwards_lands_after_the_target() {
+        assertEquals(listOf("b", "c", "a", "d"), ids(habits.movedTo("a", "c")))
+    }
+
+    @Test
+    fun dragging_upwards_lands_before_the_target() {
+        assertEquals(listOf("c", "a", "b", "d"), ids(habits.movedTo("c", "a")))
+    }
+
+    @Test
+    fun dragging_into_another_category_reassigns_it() {
+        val moved = habits.movedTo("a", "d")
+        assertEquals(Category.Fajr, moved.first { it.id == "a" }.category)
+        assertEquals(listOf("b", "c", "d", "a"), ids(moved))
+    }
+
+    @Test
+    fun sort_order_stays_dense() {
+        assertEquals(listOf(0, 1, 2, 3), habits.movedTo("a", "c").map { it.sortOrder })
+    }
+
+    @Test
+    fun dropping_a_habit_on_itself_changes_nothing() {
+        assertSame(habits, habits.movedTo("a", "a"))
+    }
+
+    @Test
+    fun an_unknown_id_is_a_no_op() {
+        assertSame(habits, habits.movedTo("a", "zzz"))
+        assertSame(habits, habits.movedTo("zzz", "a"))
+    }
+}

@@ -48,6 +48,7 @@ data class DayUiState(
     /** The live prayer window, or null when not viewing today or times are off. */
     val liveCategory: Category? = null,
     val autoScroll: Boolean = true,
+    val hapticsEnabled: Boolean = true,
 ) {
     val completed: Int get() = sections.sumOf { it.completed }
     val total: Int get() = sections.sumOf { it.rows.size }

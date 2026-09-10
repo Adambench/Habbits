@@ -4,7 +4,9 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +28,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -36,18 +41,23 @@ import dev.adambench.habbits.ui.theme.accent
 /** 48dp keeps every tap target within the accessibility minimum. */
 private val MIN_TARGET = 48.dp
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HabitCard(
     row: HabitRow,
     isExpanded: Boolean,
+    showDescription: Boolean,
+    hapticsEnabled: Boolean,
     onToggle: () -> Unit,
     onExpandToggle: () -> Unit,
+    onLongPress: () -> Unit,
     onStep: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val habit = row.habit
     val accent = habit.type.accent()
     val completed = row.isCompleted
+    val haptics = LocalHapticFeedback.current
 
     val container by animateColorAsState(
         targetValue = if (completed) accent.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface,
@@ -61,9 +71,22 @@ fun HabitCard(
             .clip(RoundedCornerShape(12.dp))
             .background(container)
             .border(1.dp, outline, RoundedCornerShape(12.dp))
-            .clickable(onClick = onToggle)
+            .combinedClickable(
+                onClick = {
+                    if (hapticsEnabled) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onToggle()
+                },
+                onLongClick = {
+                    if (hapticsEnabled) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onLongPress()
+                },
+            )
             .semantics {
                 stateDescription = if (completed) "Completed" else "Not completed"
+                contentDescription = buildString {
+                    append(habit.label)
+                    if (habit.isMeasured) append(", ${row.value} ${habit.unit.orEmpty()}")
+                }
             },
     ) {
         Row(
@@ -112,6 +135,19 @@ fun HabitCard(
                     onClick = onExpandToggle,
                 )
             }
+        }
+
+        // 28 of the imported habits carry a description the day view never
+        // showed. Long-press reveals it without cluttering the list.
+        AnimatedVisibility(visible = showDescription && !habit.description.isNullOrBlank()) {
+            Text(
+                text = habit.description.orEmpty(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 12.dp, end = 12.dp, bottom = 10.dp),
+            )
         }
 
         AnimatedVisibility(visible = isExpanded && habit.isMeasured) {

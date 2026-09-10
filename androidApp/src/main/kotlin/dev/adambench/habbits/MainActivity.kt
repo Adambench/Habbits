@@ -10,6 +10,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.lifecycleScope
 import dev.adambench.habbits.sync.VaultImporter
 import dev.adambench.habbits.ui.AppRoot
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import dev.adambench.habbits.ui.theme.HabbitsTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -50,7 +52,8 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            HabbitsTheme {
+            val settings by container.settingsRepository.settings.collectAsState()
+            HabbitsTheme(appearance = settings.appearance) {
                 AppRoot(
                     dayModel = dayModel,
                     manageModel = manageModel,

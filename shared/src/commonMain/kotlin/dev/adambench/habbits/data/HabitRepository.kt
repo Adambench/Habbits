@@ -132,6 +132,35 @@ class HabitRepository(
         }
     }
 
+    suspend fun isCompleted(date: LocalDate, habitId: String): Boolean =
+        entryDao.get(date.toEpochDays(), habitId) != null
+
+    suspend fun valueOf(date: LocalDate, habitId: String): Int? =
+        entryDao.get(date.toEpochDays(), habitId)?.value
+
+    /**
+     * Puts an entry back exactly as it was before a toggle, for undo.
+     *
+     * Restoring "not completed" deletes the row rather than writing a zero,
+     * because row presence is what completion means.
+     */
+    suspend fun restore(date: LocalDate, habitId: String, wasCompleted: Boolean, value: Int?) {
+        val epochDay = date.toEpochDays()
+        if (!wasCompleted) {
+            entryDao.delete(epochDay, habitId)
+        } else {
+            entryDao.upsert(
+                EntryEntity(
+                    date = epochDay,
+                    habitId = habitId,
+                    value = value,
+                    loggedAt = now(),
+                    hlc = clock.next().encode(),
+                ),
+            )
+        }
+    }
+
     /** Counts used by the import reconciliation gate. */
     suspend fun stats(): Stats = Stats(
         habits = habitDao.count(),

@@ -48,6 +48,7 @@ data class PrayerSettings(
     val highLatitudeRule: HighLatitudeRule = HighLatitudeRule.MiddleOfTheNight,
     /** Jump to the prayer window that is live right now when opening today. */
     val autoScroll: Boolean = true,
+    val appearance: Appearance = Appearance(),
 ) {
     companion object {
         const val MONTREAL_LATITUDE = 45.5019

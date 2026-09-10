@@ -10,6 +10,8 @@ import dev.adambench.habbits.data.createHabbitsDatabase
 import dev.adambench.habbits.data.defaultDataDirectory
 import dev.adambench.habbits.ui.AppRoot
 import dev.adambench.habbits.sync.VaultImporter
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import dev.adambench.habbits.ui.theme.HabbitsTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -74,7 +76,8 @@ fun main(args: Array<String>) {
             title = "Habbits",
             state = rememberWindowState(size = DpSize(460.dp, 900.dp)),
         ) {
-            HabbitsTheme {
+            val settings by container.settingsRepository.settings.collectAsState()
+            HabbitsTheme(appearance = settings.appearance) {
                 AppRoot(
                     dayModel = dayModel,
                     manageModel = manageModel,
