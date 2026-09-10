@@ -9,7 +9,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.lifecycleScope
 import dev.adambench.habbits.sync.VaultImporter
-import dev.adambench.habbits.ui.DayScreen
+import dev.adambench.habbits.ui.AppRoot
 import dev.adambench.habbits.ui.theme.HabbitsTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -22,7 +22,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val container = (application as HabbitsApplication).container
-        val model = container.dayScreenModel(lifecycleScope)
+        val dayModel = container.dayScreenModel(lifecycleScope)
+        val manageModel = container.manageScreenModel(lifecycleScope)
 
         setContent {
             // The system picker grants read access to exactly one file, so the
@@ -50,8 +51,9 @@ class MainActivity : ComponentActivity() {
             }
 
             HabbitsTheme {
-                DayScreen(
-                    model = model,
+                AppRoot(
+                    dayModel = dayModel,
+                    manageModel = manageModel,
                     onImport = { picker.launch(arrayOf("application/json", "*/*")) },
                 )
             }

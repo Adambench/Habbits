@@ -56,6 +56,33 @@ class HabitRepository(
     suspend fun deleteHabit(id: String) = habitDao.deleteById(id)
 
     /**
+     * Persists a new running order.
+     *
+     * Only rows that actually moved are written — a single arrow tap changes two
+     * placements, and rewriting all sixty would burn sixty clock stamps and
+     * sixty writes for nothing.
+     */
+    suspend fun applyOrder(ordered: List<Habit>) {
+        val current = habitDao.getAll().associateBy { it.id }
+        ordered.forEachIndexed { index, habit ->
+            val row = current[habit.id] ?: return@forEachIndexed
+            if (row.sortOrder != index || row.category != habit.category.ordinal) {
+                habitDao.updatePlacement(
+                    id = habit.id,
+                    category = habit.category.ordinal,
+                    sortOrder = index,
+                    hlc = clock.next().encode(),
+                )
+            }
+        }
+    }
+
+    suspend fun setStatus(id: String, status: HabitStatus) {
+        val habit = habitDao.getById(id)?.toDomain() ?: return
+        saveHabit(habit.copy(status = status))
+    }
+
+    /**
      * Toggles completion for [habitId] on [date].
      *
      * Completing stores the habit's default value when it has one, matching the

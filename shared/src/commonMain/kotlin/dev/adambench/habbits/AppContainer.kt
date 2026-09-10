@@ -5,6 +5,7 @@ import dev.adambench.habbits.data.HabitRepository
 import dev.adambench.habbits.sync.HlcGenerator
 import dev.adambench.habbits.sync.VaultImporter
 import dev.adambench.habbits.ui.DayScreenModel
+import dev.adambench.habbits.ui.manage.ManageScreenModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
@@ -36,6 +37,9 @@ class AppContainer(
         DayScreenModel(repository, scope, ::today)
 
     fun importer(): VaultImporter = VaultImporter(database, clock, now)
+
+    fun manageScreenModel(scope: CoroutineScope): ManageScreenModel =
+        ManageScreenModel(repository, scope) { "habit_${now()}" }
 
     fun close() = database.close()
 }

@@ -7,7 +7,7 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import dev.adambench.habbits.data.createHabbitsDatabase
 import dev.adambench.habbits.data.defaultDataDirectory
-import dev.adambench.habbits.ui.DayScreen
+import dev.adambench.habbits.ui.AppRoot
 import dev.adambench.habbits.sync.VaultImporter
 import dev.adambench.habbits.ui.theme.HabbitsTheme
 import kotlinx.coroutines.CoroutineScope
@@ -59,7 +59,8 @@ fun main(args: Array<String>) {
     }
 
     val scope = CoroutineScope(SupervisorJob())
-    val model = container.dayScreenModel(scope)
+    val dayModel = container.dayScreenModel(scope)
+    val manageModel = container.manageScreenModel(scope)
 
     application {
         Window(
@@ -72,8 +73,9 @@ fun main(args: Array<String>) {
             state = rememberWindowState(size = DpSize(460.dp, 900.dp)),
         ) {
             HabbitsTheme {
-                DayScreen(
-                    model = model,
+                AppRoot(
+                    dayModel = dayModel,
+                    manageModel = manageModel,
                     onImport = {
                         val chosen = FileDialog(null as Frame?, "Choose a backup", FileDialog.LOAD)
                             .apply {
