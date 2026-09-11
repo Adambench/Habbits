@@ -40,6 +40,7 @@ import io.github.adambench.habbits.data.SettingsRepository
 import kotlinx.coroutines.launch
 import io.github.adambench.habbits.domain.AsrMadhab
 import io.github.adambench.habbits.domain.ThemeMode
+import io.github.adambench.habbits.domain.WindowReminder
 import io.github.adambench.habbits.domain.Category
 import io.github.adambench.habbits.domain.HighLatitudeRule
 import io.github.adambench.habbits.domain.PrayerClock
@@ -54,6 +55,8 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     onPickSyncFolder: (() -> Unit)? = null,
     onSyncNow: (suspend () -> String)? = null,
+    /** Called after any reminder change so the platform can re-arm its alarm. */
+    onRemindersChanged: (() -> Unit)? = null,
 ) {
     val settings by repository.settings.collectAsState()
     val scope = rememberCoroutineScope()
@@ -202,6 +205,52 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
+            Label("Reminders")
+            Text(
+                text = "A nudge when a window opens and something is still outstanding. " +
+                    "Offsets follow the prayer time, so they move with the sun instead of " +
+                    "drifting out of date.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            SwitchRow("Remind me", settings.reminders.enabled) {
+                repository.update(settings.copy(reminders = settings.reminders.copy(enabled = it)))
+                onRemindersChanged?.invoke()
+            }
+            if (settings.reminders.enabled) {
+                SwitchRow("Stay quiet when already done", settings.reminders.silentWhenDone) {
+                    repository.update(
+                        settings.copy(reminders = settings.reminders.copy(silentWhenDone = it)),
+                    )
+                }
+                Category.entries.forEach { category ->
+                    val window = settings.reminders.forCategory(category)
+                    val hasPrayerTime = preview?.get(category) != null
+                    ReminderRow(
+                        window = window,
+                        hasPrayerTime = hasPrayerTime,
+                        firesAt = preview?.get(category)?.let { base ->
+                            val total = (base.hour * 60 + base.minute + window.offsetMinutes)
+                                .coerceIn(0, 24 * 60 - 1)
+                            "${(total / 60).toString().padStart(2, '0')}:" +
+                                (total % 60).toString().padStart(2, '0')
+                        },
+                        onChange = { updated ->
+                            repository.update(
+                                settings.copy(
+                                    reminders = settings.reminders.copy(
+                                        windows = settings.reminders.windows.map {
+                                            if (it.category == updated.category) updated else it
+                                        },
+                                    ),
+                                ),
+                            )
+                            onRemindersChanged?.invoke()
+                        },
+                    )
+                }
+            }
+
             Label("Sync")
             Text(
                 text = "Point this at any folder that something replicates — Syncthing, " +
@@ -288,6 +337,78 @@ private fun SmallButton(text: String, onClick: () -> Unit) {
             color = MaterialTheme.colorScheme.primary,
         )
     }
+}
+
+@Composable
+private fun ReminderRow(
+    window: WindowReminder,
+    hasPrayerTime: Boolean,
+    firesAt: String?,
+    onChange: (WindowReminder) -> Unit,
+) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(window.category.displayName, style = MaterialTheme.typography.bodyMedium)
+                if (window.enabled) {
+                    Text(
+                        text = when {
+                            !hasPrayerTime ->
+                                "at ${window.fallbackHour.toString().padStart(2, '0')}:" +
+                                    window.fallbackMinute.toString().padStart(2, '0') +
+                                    " — this window has no prayer time"
+                            firesAt != null ->
+                                "${offsetLabel(window.offsetMinutes)} — today that is $firesAt"
+                            else -> offsetLabel(window.offsetMinutes)
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            Switch(
+                checked = window.enabled,
+                onCheckedChange = { onChange(window.copy(enabled = it)) },
+            )
+        }
+        if (window.enabled && hasPrayerTime) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf(-15, 0, 10, 20, 30, 45).forEach { offset ->
+                    val selected = window.offsetMinutes == offset
+                    Box(
+                        Modifier
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(
+                                if (selected) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceVariant
+                                },
+                            )
+                            .clickable { onChange(window.copy(offsetMinutes = offset)) }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                    ) {
+                        Text(
+                            text = if (offset == 0) "on time" else "${if (offset > 0) "+" else ""}$offset",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (selected) {
+                                MaterialTheme.colorScheme.surface
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+        }
+    }
+}
+
+private fun offsetLabel(minutes: Int): String = when {
+    minutes == 0 -> "when the window opens"
+    minutes > 0 -> "$minutes min after it opens"
+    else -> "${-minutes} min before it opens"
 }
 
 @Composable

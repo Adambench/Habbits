@@ -49,6 +49,7 @@ fun StatsScreen(
 ) {
     val s by model.state.collectAsState()
     var selectedDay by remember { mutableStateOf<LocalDate?>(null) }
+    var detailHabitId by remember { mutableStateOf<String?>(null) }
 
     Scaffold(modifier = modifier.fillMaxSize()) { insets ->
         Column(
@@ -149,7 +150,24 @@ fun StatsScreen(
             }
 
             Section("Every habit") {
-                s.habits.forEach { HabitRow(it) }
+                // Duplicate labels are real here: the morning and evening pairs
+                // share names, so the window is shown whenever a name repeats.
+                val duplicated = s.habits.groupBy { it.habit.label }
+                    .filterValues { it.size > 1 }
+                    .keys
+                s.habits.forEach { stat ->
+                    HabitRow(
+                        stat = stat,
+                        showCategory = stat.habit.label in duplicated,
+                        onClick = { detailHabitId = stat.habit.id },
+                    )
+                }
+            }
+
+            detailHabitId?.let { id ->
+                s.habits.firstOrNull { it.habit.id == id }?.let { stat ->
+                    HabitDetailSheet(stat = stat, onDismiss = { detailHabitId = null })
+                }
             }
 
             if (s.excludedHabits > 0) {
@@ -204,11 +222,20 @@ private fun Tile(value: String, label: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun HabitRow(stat: HabitStat) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+private fun HabitRow(stat: HabitStat, showCategory: Boolean, onClick: () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 6.dp),
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = stat.habit.label,
+                text = if (showCategory) {
+                    "${stat.habit.label} · ${stat.habit.category.displayName}"
+                } else {
+                    stat.habit.label
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.weight(1f),
                 maxLines = 1,

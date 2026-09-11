@@ -1,0 +1,13 @@
+Reminders and per-habit stats.
+
+Reminders are anchored to the prayer windows, so an offset like "Maghrib + 20"
+follows the sun through the year instead of being a clock time that drifts. They
+stay quiet when everything in the window is already logged, and they are off by
+default.
+
+Tap any habit in the stats list for its own history: gaps, how often a miss is
+followed by a recovery, and a plain reading of the pattern behind the numbers.
+
+Habits that share a name now show their prayer window beside it.
+
+Your data carries over untouched.

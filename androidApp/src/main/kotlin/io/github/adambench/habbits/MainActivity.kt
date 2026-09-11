@@ -10,7 +10,10 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import android.os.Build
 import androidx.lifecycle.lifecycleScope
+import io.github.adambench.habbits.reminders.ReminderReceiver
+import io.github.adambench.habbits.reminders.ReminderScheduler
 import io.github.adambench.habbits.ui.AppRoot
 import io.github.adambench.habbits.ui.theme.HabbitsTheme
 import kotlinx.coroutines.Dispatchers
@@ -79,6 +82,27 @@ class MainActivity : ComponentActivity() {
                 container.bindSync(uri.toString())
             }
 
+            // Asked for only when reminders are switched on, never at launch.
+            val notificationPermission = rememberLauncherForActivityResult(
+                ActivityResultContracts.RequestPermission(),
+            ) { granted ->
+                val repo = container.settingsRepository
+                val current = repo.settings.value
+                if (granted) {
+                    ReminderReceiver.ensureChannel(this@MainActivity)
+                    ReminderScheduler.reschedule(this@MainActivity, container)
+                } else {
+                    // Without the permission a reminder can never appear, so the
+                    // setting is turned back off rather than silently doing nothing.
+                    repo.update(current.copy(reminders = current.reminders.copy(enabled = false)))
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Reminders need notification permission",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+            }
+
             val settings by container.settingsRepository.settings.collectAsState()
             HabbitsTheme(appearance = settings.appearance) {
                 AppRoot(
@@ -89,6 +113,15 @@ class MainActivity : ComponentActivity() {
                     today = container.today(),
                     onImport = { picker.launch(arrayOf("application/json", "*/*")) },
                     onPickSyncFolder = { folderPicker.launch(null) },
+                    onRemindersChanged = {
+                        val enabled = container.settingsRepository.settings.value.reminders.enabled
+                        if (enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            ReminderReceiver.ensureChannel(this@MainActivity)
+                            ReminderScheduler.reschedule(this@MainActivity, container)
+                        }
+                    },
                     onSyncNow = {
                         val report = withContext(Dispatchers.IO) { container.syncNow() }
                         if (report == null) {
@@ -106,6 +139,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
+        // Prayer times shift daily, so the next alarm is re-armed whenever the
+        // app is left rather than only when a reminder fires.
+        ReminderScheduler.reschedule(this, container)
         // Leaving the app is the natural moment to put pending events on disk.
         container.flushSync()
     }

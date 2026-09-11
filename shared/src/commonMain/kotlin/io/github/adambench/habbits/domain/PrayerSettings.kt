@@ -50,6 +50,7 @@ data class PrayerSettings(
     val autoScroll: Boolean = true,
     val appearance: Appearance = Appearance(),
     val sync: SyncSettings = SyncSettings(),
+    val reminders: ReminderSettings = ReminderSettings(),
 ) {
     companion object {
         const val MONTREAL_LATITUDE = 45.5019

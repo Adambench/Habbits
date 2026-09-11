@@ -23,7 +23,7 @@ compose.desktop {
             // Fedora is the primary desktop target; Deb covers Debian/Ubuntu.
             targetFormats(TargetFormat.Rpm, TargetFormat.Deb)
             packageName = "Habbits"
-            packageVersion = "1.1.0"
+            packageVersion = "1.2.0"
             description = "Offline-first habit logger organised along the daily prayer timeline"
             vendor = "Adambench"
         }

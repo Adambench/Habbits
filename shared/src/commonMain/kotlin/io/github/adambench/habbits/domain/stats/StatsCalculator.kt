@@ -68,6 +68,7 @@ object StatsCalculator {
             val doneDates = completionsByHabit[habit.id].orEmpty().mapTo(HashSet()) { it.date }
             val hit = dueDates.filter { it in doneDates }
             val values = completionsByHabit[habit.id].orEmpty().mapNotNull { it.value }
+            val gaps = gapRuns(dueDates, doneDates, today)
             HabitStat(
                 habit = habit,
                 due = dueDates.size,
@@ -76,6 +77,12 @@ object StatsCalculator {
                 longestStreak = longestStreak(dueDates, doneDates),
                 total = if (habit.isMeasured && values.isNotEmpty()) values.sum() else null,
                 lastDone = doneDates.maxOrNull(),
+                longestGap = gaps.maxOrNull() ?: 0,
+                currentGap = currentGap(dueDates, doneDates, today),
+                recoveryRate = recoveryRate(dueDates, doneDates),
+                days = dates.map { date ->
+                    HabitDay(date, habit.isScheduledOn(date), date in doneDates)
+                },
             )
         }.sortedByDescending { it.rate }
 
@@ -166,6 +173,72 @@ object StatsCalculator {
             }
         }
         return best
+    }
+
+    /**
+     * Every run of consecutive missed due days.
+     *
+     * An unfinished today is skipped rather than counted as a miss, so the
+     * longest gap agrees with the current gap and the streak instead of jumping
+     * by one every morning.
+     */
+    private fun gapRuns(
+        dueDates: List<LocalDate>,
+        doneDates: Set<LocalDate>,
+        today: LocalDate,
+    ): List<Int> {
+        val runs = mutableListOf<Int>()
+        var run = 0
+        for (date in dueDates.sorted()) {
+            if (date == today && date !in doneDates) continue
+            if (date in doneDates) {
+                if (run > 0) runs += run
+                run = 0
+            } else {
+                run++
+            }
+        }
+        if (run > 0) runs += run
+        return runs
+    }
+
+    /**
+     * Missed due days since the last completion.
+     *
+     * An unfinished today is not counted, for the same reason it does not break
+     * a streak: the day is not over.
+     */
+    private fun currentGap(
+        dueDates: List<LocalDate>,
+        doneDates: Set<LocalDate>,
+        today: LocalDate,
+    ): Int {
+        var gap = 0
+        for (date in dueDates.sortedDescending()) {
+            when {
+                date in doneDates -> break
+                date == today -> continue
+                else -> gap++
+            }
+        }
+        return gap
+    }
+
+    /**
+     * Of the times this habit was missed on a due day, how often the very next
+     * due day was completed. Null when it was never missed.
+     */
+    private fun recoveryRate(dueDates: List<LocalDate>, doneDates: Set<LocalDate>): Float? {
+        val ordered = dueDates.sorted()
+        var misses = 0
+        var recovered = 0
+        for (i in 0 until ordered.size - 1) {
+            if (ordered[i] !in doneDates) {
+                misses++
+                if (ordered[i + 1] in doneDates) recovered++
+            }
+        }
+        return if (misses == 0) null else recovered.toFloat() / misses
     }
 
     /** Consecutive calendar days ending today (or yesterday) with any completion. */

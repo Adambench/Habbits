@@ -18,6 +18,9 @@ data class DayStat(val date: LocalDate, val due: Int, val done: Int) {
     val hasActivity: Boolean get() = done > 0
 }
 
+/** One day in a single habit's history. */
+data class HabitDay(val date: LocalDate, val due: Boolean, val done: Boolean)
+
 data class HabitStat(
     val habit: Habit,
     val due: Int,
@@ -27,9 +30,28 @@ data class HabitStat(
     /** Sum of logged amounts for a measured habit; null for a plain check. */
     val total: Int?,
     val lastDone: LocalDate?,
+    /** Longest run of consecutive *due* days missed. */
+    val longestGap: Int = 0,
+    /** Due days missed since the last completion. */
+    val currentGap: Int = 0,
+    /**
+     * How often a miss was followed by a completion on the very next due day.
+     *
+     * Null when the habit was never missed. This separates "intermittent" from
+     * "abandoned" — two habits can share a rate and behave nothing alike.
+     */
+    val recoveryRate: Float? = null,
+    val days: List<HabitDay> = emptyList(),
 ) {
     val rate: Float get() = if (due == 0) 0f else done.toFloat() / due
     val missed: Int get() = (due - done).coerceAtLeast(0)
+
+    /** Missed for long enough that it reads as dropped, not merely intermittent. */
+    val isAbandoned: Boolean get() = currentGap >= ABANDONED_AFTER
+
+    companion object {
+        const val ABANDONED_AFTER = 14
+    }
 }
 
 data class CategoryStat(val category: Category, val due: Int, val done: Int) {

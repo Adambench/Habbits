@@ -179,3 +179,84 @@ class StatsCalculatorTest {
         assertTrue(s.habits.isEmpty())
     }
 }
+
+/** Gap and recovery metrics: what separates "intermittent" from "abandoned". */
+class GapMetricsTest {
+
+    private val today = LocalDate(2026, 1, 20)
+    private fun day(d: Int) = LocalDate(2026, 1, d)
+    private val daily = Habit(id = "d", label = "Daily")
+
+    private fun compute(done: List<Int>) = StatsCalculator.compute(
+        habits = listOf(daily),
+        completions = done.map { Completion(day(it), "d", null) },
+        range = StatsRange.All,
+        today = today,
+        earliest = day(1),
+    ).habits.single()
+
+    @Test
+    fun longest_gap_finds_the_worst_run_of_misses() {
+        // done 1,2 … missed 3-9 (7) … done 10 … missed 11-14 (4) … done 15-20
+        val stat = compute(listOf(1, 2, 10, 15, 16, 17, 18, 19, 20))
+        assertEquals(7, stat.longestGap)
+    }
+
+    @Test
+    fun current_gap_counts_misses_since_the_last_completion() {
+        val stat = compute(listOf(1, 2, 3))
+        assertEquals(16, stat.currentGap, "the 4th to the 19th; today is not counted")
+    }
+
+    @Test
+    fun current_gap_is_zero_while_up_to_date() {
+        assertEquals(0, compute((1..20).toList()).currentGap)
+    }
+
+    @Test
+    fun an_unfinished_today_does_not_open_a_gap() {
+        val stat = compute((1..19).toList())
+        assertEquals(0, stat.currentGap, "the day is not over")
+    }
+
+    @Test
+    fun two_habits_with_the_same_rate_are_told_apart_by_their_gaps() {
+        // Both 50%: one alternates, the other ran then stopped.
+        val alternating = compute((1..20).filter { it % 2 == 1 })
+        val abandoned = compute((1..10).toList())
+        assertEquals(alternating.done, abandoned.done, "same number of completions")
+        assertEquals(1, alternating.longestGap)
+        assertEquals(9, abandoned.longestGap, "the same rate, a completely different story")
+        assertEquals(9, abandoned.currentGap)
+    }
+
+    @Test
+    fun recovery_rate_measures_bouncing_back_the_next_due_day() {
+        // Missed the 2nd, 4th and 5th. Came back on the 3rd and the 6th, but
+        // the 4th was followed by another miss.
+        val stat = compute(listOf(1, 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20))
+        assertEquals(2, stat.longestGap)
+        assertEquals(2f / 3f, stat.recoveryRate)
+    }
+
+    @Test
+    fun a_long_absence_reads_as_abandoned() {
+        val dropped = compute(listOf(1, 2, 3))
+        assertEquals(16, dropped.currentGap)
+        assertTrue(dropped.isAbandoned)
+        assertTrue(!compute((1..20).filter { it % 2 == 1 }).isAbandoned, "alternating is not abandoned")
+    }
+
+    @Test
+    fun a_habit_never_missed_has_no_recovery_rate() {
+        assertNull(compute((1..20).toList()).recoveryRate, "nothing to recover from")
+    }
+
+    @Test
+    fun per_habit_days_cover_the_whole_window_for_the_heatmap() {
+        val stat = compute(listOf(5))
+        assertEquals(20, stat.days.size)
+        assertTrue(stat.days.all { it.due }, "a daily habit is due every day")
+        assertEquals(1, stat.days.count { it.done })
+    }
+}

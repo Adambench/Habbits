@@ -3,6 +3,9 @@ package io.github.adambench.habbits
 import io.github.adambench.habbits.data.HabbitsDatabase
 import io.github.adambench.habbits.data.HabitRepository
 import io.github.adambench.habbits.data.SettingsRepository
+import io.github.adambench.habbits.domain.Category
+import io.github.adambench.habbits.domain.Habit
+import io.github.adambench.habbits.domain.isVisibleOn
 import io.github.adambench.habbits.sync.BufferedSyncJournal
 import io.github.adambench.habbits.sync.HlcGenerator
 import io.github.adambench.habbits.sync.SyncJournal
@@ -62,6 +65,19 @@ class AppContainer(
         DayScreenModel(repository, settingsRepository, scope, ::today, ::nowTime)
 
     fun importer(): VaultImporter = VaultImporter(database, clock, now)
+
+    /**
+     * Habits due in [category] on [date] that have not been logged yet.
+     *
+     * Used by reminders so a notification can stay quiet when there is nothing
+     * left to do, and name what is outstanding when there is.
+     */
+    suspend fun outstanding(date: LocalDate, category: Category): List<Habit> {
+        val logged = database.entryDao().getDay(date.toEpochDays()).mapTo(HashSet()) { it.habitId }
+        return repository.getHabits().filter {
+            it.category == category && it.isVisibleOn(date) && it.id !in logged
+        }
+    }
 
     fun statsScreenModel(scope: CoroutineScope): StatsScreenModel =
         StatsScreenModel(repository, database.entryDao(), scope, ::today)
