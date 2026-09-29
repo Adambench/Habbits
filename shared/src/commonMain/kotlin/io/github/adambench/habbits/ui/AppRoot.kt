@@ -62,6 +62,7 @@ fun AppRoot(
 
         Screen.Manage -> ManageScreen(
             model = manageModel,
+            today = today,
             onDone = { screen = Screen.Day },
             onSettings = { screen = Screen.Settings },
             modifier = modifier,

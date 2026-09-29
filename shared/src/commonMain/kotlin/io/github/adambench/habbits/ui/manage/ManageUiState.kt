@@ -13,8 +13,9 @@ data class ManageUiState(
     val editing: Habit? = null,
     /** True when [editing] is not yet in the database. */
     val isNew: Boolean = false,
+    /** Retired habits, listed apart so they cannot be mistaken for live ones. */
+    val archived: List<Habit> = emptyList(),
     val showArchived: Boolean = false,
-    val archivedCount: Int = 0,
     val isLoading: Boolean = true,
 ) {
     val total: Int get() = sections.sumOf { it.habits.size }

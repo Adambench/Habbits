@@ -47,17 +47,19 @@ class ManageScreenModelTest {
         ManageScreenModel(repository, scope) { "habit_new" }
 
     @Test
-    fun archived_habits_are_hidden_until_asked_for() = runTest {
+    fun archived_habits_are_listed_apart_from_live_ones() = runTest {
         seed()
         val m = model(backgroundScope)
         val hidden = m.state.first { !it.isLoading }
         assertEquals(3, hidden.total)
-        assertEquals(1, hidden.archivedCount, "the count is offered even while hidden")
+        assertEquals(listOf("old"), hidden.archived.map { it.id }, "the count is offered even while hidden")
 
         m.toggleShowArchived()
         val shown = m.state.first { it.showArchived }
-        assertEquals(4, shown.total)
-        assertTrue(shown.sections.flatMap { it.habits }.any { it.id == "old" })
+        // Showing them opens their own section; they never mix into the live list.
+        assertEquals(3, shown.total)
+        assertTrue(shown.sections.flatMap { it.habits }.none { it.id == "old" })
+        assertEquals(listOf("old"), shown.archived.map { it.id })
     }
 
     @Test

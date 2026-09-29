@@ -15,10 +15,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
@@ -27,19 +30,30 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.github.adambench.habbits.domain.Category
+import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.plus
 import kotlinx.datetime.LocalTime
+
+/**
+ * Days either side of the anchor the pager can reach, about 27 years each way.
+ * A pager needs a finite page count; this one is never approached in practice.
+ */
+private const val PAGE_COUNT = 20_000
+private const val ORIGIN_PAGE = PAGE_COUNT / 2
 
 @Composable
 fun DayScreen(
@@ -62,7 +76,27 @@ fun DayScreen(
         describedHabitId = null
     }
 
-    val listState = rememberLazyListState()
+    // Pages are days counted from a fixed anchor, so a page number means the
+    // same date for as long as the screen lives, midnight included.
+    val origin = remember { selected }
+    val dateOf = { page: Int -> origin.plus(DatePeriod(days = page - ORIGIN_PAGE)) }
+    val pageOf = { date: LocalDate -> ORIGIN_PAGE + (date.toEpochDays() - origin.toEpochDays()).toInt() }
+    val pagerState = rememberPagerState(initialPage = pageOf(selected)) { PAGE_COUNT }
+
+    // The model owns the date and the pager follows it: the arrows, the week
+    // strip and "Back to today" all move the model. A jump is instant rather
+    // than animated, because an animation cancelled halfway by a second tap
+    // would settle on a page in between and drag the model back with it.
+    LaunchedEffect(selected) {
+        val target = pageOf(selected)
+        if (pagerState.currentPage != target) pagerState.scrollToPage(target)
+    }
+    // A swipe is the one move that starts in the pager, and it only counts
+    // once it has come to rest.
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.settledPage }.collect { page -> model.selectDate(dateOf(page)) }
+    }
+
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(model) {
@@ -77,15 +111,6 @@ fun DayScreen(
         }
     }
 
-    // Jump to the window that is live now. Keyed on the day and the window, so
-    // it fires once per day rather than fighting the user's own scrolling.
-    LaunchedEffect(selected, state.liveCategory, state.autoScroll) {
-        val live = state.liveCategory ?: return@LaunchedEffect
-        if (!state.autoScroll) return@LaunchedEffect
-        val index = state.headerIndexOf(live) ?: return@LaunchedEffect
-        listState.animateScrollToItem(index)
-    }
-
     Scaffold(
         modifier = modifier.fillMaxSize(),
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -93,8 +118,6 @@ fun DayScreen(
         Column(Modifier.fillMaxSize().padding(insets)) {
             DayHeader(
                 state = state,
-                onPrevious = { model.shiftDay(-1) },
-                onNext = { model.shiftDay(1) },
                 onToday = { model.goToToday() },
                 onManage = onManage,
                 onStats = onStats,
@@ -103,56 +126,105 @@ fun DayScreen(
             WeekStrip(
                 days = state.week,
                 onSelect = { model.selectDate(it) },
+                onPrevious = { model.shiftDay(-1) },
+                onNext = { model.shiftDay(1) },
             )
 
             Spacer(Modifier.height(4.dp))
 
-            if (state.sections.isEmpty()) {
-                EmptyDay(
-                    isLoading = state.isLoading,
-                    hasAnyHabits = state.hasAnyHabits,
+            HorizontalPager(
+                state = pagerState,
+                // Draw the neighbours ahead of time, so a swipe reveals the
+                // next day's habits rather than an empty page filling in.
+                beyondViewportPageCount = 1,
+                key = { it },
+                modifier = Modifier.fillMaxSize(),
+            ) { page ->
+                val date = dateOf(page)
+                val pageFlow = remember(date) { model.stateFor(date) }
+                val pageState by pageFlow.collectAsState(initial = null)
+                val isCurrent = date == selected
+                DayPage(
+                    state = pageState ?: return@HorizontalPager,
+                    expandedHabitId = expandedHabitId.takeIf { isCurrent },
+                    describedHabitId = describedHabitId.takeIf { isCurrent },
                     onImport = onImport,
+                    onDescribe = { id ->
+                        describedHabitId = if (describedHabitId == id) null else id
+                    },
+                    onExpand = { id ->
+                        expandedHabitId = if (expandedHabitId == id) null else id
+                    },
+                    onToggle = { id ->
+                        expandedHabitId = null
+                        model.toggle(id)
+                    },
+                    onStep = { id, amount -> model.step(id, amount) },
                 )
-            } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                        start = 16.dp, end = 16.dp, top = 8.dp, bottom = 32.dp,
-                    ),
-                ) {
-                    state.sections.forEach { section ->
-                        item(key = "header-${section.category.name}") {
-                            CategoryHeader(section)
-                        }
-                        items(
-                            count = section.rows.size,
-                            key = { i -> section.rows[i].habit.id },
-                        ) { i ->
-                            val row = section.rows[i]
-                            Box(Modifier.padding(start = 20.dp, bottom = 8.dp)) {
-                                HabitCard(
-                                    row = row,
-                                    isExpanded = expandedHabitId == row.habit.id,
-                                    showDescription = describedHabitId == row.habit.id,
-                                    hapticsEnabled = state.hapticsEnabled,
-                                    onLongPress = {
-                                        describedHabitId =
-                                            if (describedHabitId == row.habit.id) null else row.habit.id
-                                    },
-                                    onToggle = {
-                                        expandedHabitId = null
-                                        model.toggle(row.habit.id)
-                                    },
-                                    onExpandToggle = {
-                                        expandedHabitId =
-                                            if (expandedHabitId == row.habit.id) null else row.habit.id
-                                    },
-                                    onStep = { model.step(row.habit.id, it) },
-                                )
-                            }
-                        }
-                    }
+            }
+        }
+    }
+}
+
+/** One day's list. Several exist at once while the pager is moving. */
+@Composable
+private fun DayPage(
+    state: DayUiState,
+    expandedHabitId: String?,
+    describedHabitId: String?,
+    onImport: (() -> Unit)?,
+    onDescribe: (String) -> Unit,
+    onExpand: (String) -> Unit,
+    onToggle: (String) -> Unit,
+    onStep: (String, Int) -> Unit,
+) {
+    val listState = rememberLazyListState()
+
+    // Jump to the window that is live now. Keyed on the window, so it fires
+    // once per window rather than fighting the user's own scrolling.
+    LaunchedEffect(state.liveCategory, state.autoScroll) {
+        val live = state.liveCategory ?: return@LaunchedEffect
+        if (!state.autoScroll) return@LaunchedEffect
+        val index = state.headerIndexOf(live) ?: return@LaunchedEffect
+        listState.animateScrollToItem(index)
+    }
+
+    if (state.sections.isEmpty()) {
+        EmptyDay(
+            isLoading = state.isLoading,
+            hasAnyHabits = state.hasAnyHabits,
+            onImport = onImport,
+        )
+        return
+    }
+
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+            start = 16.dp, end = 16.dp, top = 8.dp, bottom = 32.dp,
+        ),
+    ) {
+        state.sections.forEach { section ->
+            item(key = "header-${section.category.name}") {
+                CategoryHeader(section)
+            }
+            items(
+                count = section.rows.size,
+                key = { i -> section.rows[i].habit.id },
+            ) { i ->
+                val row = section.rows[i]
+                Box(Modifier.padding(start = 20.dp, bottom = 8.dp)) {
+                    HabitCard(
+                        row = row,
+                        isExpanded = expandedHabitId == row.habit.id,
+                        showDescription = describedHabitId == row.habit.id,
+                        hapticsEnabled = state.hapticsEnabled,
+                        onLongPress = { onDescribe(row.habit.id) },
+                        onToggle = { onToggle(row.habit.id) },
+                        onExpandToggle = { onExpand(row.habit.id) },
+                        onStep = { onStep(row.habit.id, it) },
+                    )
                 }
             }
         }
@@ -162,8 +234,6 @@ fun DayScreen(
 @Composable
 private fun DayHeader(
     state: DayUiState,
-    onPrevious: () -> Unit,
-    onNext: () -> Unit,
     onToday: () -> Unit,
     onManage: (() -> Unit)?,
     onStats: (() -> Unit)?,
@@ -174,11 +244,15 @@ private fun DayHeader(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        ProgressRing(completed = state.completed, total = state.total, size = 48.dp)
+        Spacer(Modifier.width(12.dp))
+
         Column(Modifier.weight(1f)) {
             Text(
                 text = state.selectedDate.headerLabel(),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
                 color = if (state.isToday) {
                     MaterialTheme.colorScheme.primary
                 } else {
@@ -205,11 +279,41 @@ private fun DayHeader(
             }
         }
 
-        if (onStats != null) NavArrow("◔", onStats)
-        if (onManage != null) NavArrow("⚙", onManage)
-        NavArrow("‹", onPrevious)
-        ProgressRing(completed = state.completed, total = state.total)
-        NavArrow("›", onNext)
+        if (onStats != null) {
+            HeaderButton("Stats", onStats) { StatsIcon(size = 20.dp) }
+            Spacer(Modifier.width(6.dp))
+        }
+        if (onManage != null) {
+            HeaderButton("Habits", onManage) { HabitsIcon(size = 20.dp) }
+        }
+    }
+}
+
+/**
+ * An icon with its name under it. The name is the point: a bare glyph left the
+ * way to the stats a guess.
+ */
+@Composable
+private fun HeaderButton(label: String, onClick: () -> Unit, icon: @Composable () -> Unit) {
+    Column(
+        modifier = Modifier
+            .size(width = 56.dp, height = 52.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) {
+            icon()
+        }
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -217,8 +321,8 @@ private fun DayHeader(
 private fun NavArrow(glyph: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .size(44.dp)
-            .clip(CircleShape)
+            .size(width = 32.dp, height = 56.dp)
+            .clip(RoundedCornerShape(10.dp))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -231,16 +335,24 @@ private fun NavArrow(glyph: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun WeekStrip(days: List<DayChip>, onSelect: (LocalDate) -> Unit) {
+private fun WeekStrip(
+    days: List<DayChip>,
+    onSelect: (LocalDate) -> Unit,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp),
+            .padding(horizontal = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
+        NavArrow("‹", onPrevious)
         days.forEach { chip ->
             DayChipView(chip, Modifier.weight(1f)) { onSelect(chip.date) }
         }
+        NavArrow("›", onNext)
     }
 }
 

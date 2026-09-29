@@ -31,16 +31,16 @@ class ManageScreenModel(
             isNew,
             showArchived,
         ) { habits, edit, fresh, archived ->
-            val visible = habits.filter { archived || it.status != HabitStatus.Archived }
+            val (retired, current) = habits.partition { it.status == HabitStatus.Archived }
             ManageUiState(
                 sections = Category.entries.mapNotNull { category ->
-                    val group = visible.filter { it.category == category }
+                    val group = current.filter { it.category == category }
                     if (group.isEmpty()) null else ManageSection(category, group)
                 },
                 editing = edit,
                 isNew = fresh,
+                archived = retired,
                 showArchived = archived,
-                archivedCount = habits.count { it.status == HabitStatus.Archived },
                 isLoading = false,
             )
         }.stateIn(

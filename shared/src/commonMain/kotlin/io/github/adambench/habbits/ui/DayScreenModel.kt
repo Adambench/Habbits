@@ -14,6 +14,7 @@ import io.github.adambench.habbits.domain.isShownOn
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -57,19 +58,7 @@ class DayScreenModel(
     val messages = _messages.asSharedFlow()
 
     val state: StateFlow<DayUiState> = selectedDate
-        .flatMapLatest { date ->
-            val week = weekOf(date)
-            combine(
-                // Every habit, archived included: a past day shows what was
-                // active then, which need not be what is active now.
-                repository.observeHabits(),
-                repository.observeDay(date),
-                repository.observeRange(week.first(), week.last()),
-                settingsRepository.settings,
-            ) { habits, log, rangeLogs, settings ->
-                buildState(date, habits, log, rangeLogs, settings)
-            }
-        }
+        .flatMapLatest { date -> stateFor(date) }
         .stateIn(
             scope = scope,
             started = SharingStarted.WhileSubscribed(5_000),
@@ -78,6 +67,24 @@ class DayScreenModel(
 
     init {
         scope.launch { repository.backfillStatusHistory() }
+    }
+
+    /**
+     * The day view for any [date], not only the selected one, so the pages
+     * either side of it can be drawn while a swipe is still under the finger.
+     */
+    fun stateFor(date: LocalDate): Flow<DayUiState> {
+        val week = weekOf(date)
+        return combine(
+            // Every habit, archived included: a past day shows what was
+            // active then, which need not be what is active now.
+            repository.observeHabits(),
+            repository.observeDay(date),
+            repository.observeRange(week.first(), week.last()),
+            settingsRepository.settings,
+        ) { habits, log, rangeLogs, settings ->
+            buildState(date, habits, log, rangeLogs, settings)
+        }
     }
 
     fun selectDate(date: LocalDate) {
