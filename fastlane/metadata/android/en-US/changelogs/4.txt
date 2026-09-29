@@ -1,16 +1,21 @@
-Reminders that actually arrive, and stats that respect sleeping habits.
+Swipe between days, a clearer Habits screen, and reminders that actually arrive.
 
-Reminders now use exact alarms, so a phone left idle on a desk or nightstand no
-longer holds them back for hours. Each alarm knows which window it is for, so
-Anytime and Before Fajr reminders, and ones set to go off before a window opens,
-now fire. Switching reminders on arms the six prayer windows straight away. They
-re-arm after an app update or a time zone change, and settings now show when the
-next one is due, what is blocking them if anything, and a button to send a test.
+Swipe left or right on the day view to move between days. The header now has
+labelled Stats and Habits buttons, and the day arrows sit beside the week strip.
 
-Stats now know when a habit was asleep. A habit counts only on the days it was
-awake: one asleep today still gets credit for the months it was done, and one
-woken yesterday is not marked missed for the weeks it slept. A habit added
-mid-year is no longer counted as missed every day before it existed. Past days
-in the day view show what was active then.
+The Habits screen explains itself: each habit says when it repeats and what it
+tracks, and a menu names every action. Archived habits have their own section,
+and deleting asks first and offers to archive instead. The editor is grouped
+into clear sections, reads the habit back in a sentence as you edit, and asks
+before throwing away unsaved changes.
+
+Reminders now use exact alarms, so an idle phone no longer holds them back for
+hours. Anytime and Before Fajr reminders, and ones set before a window opens,
+now fire. They re-arm after an update or a time zone change, and settings show
+when the next one is due, what is blocking them, and a button to send a test.
+
+Stats now know when a habit was asleep: it counts only on the days it was
+awake, and a habit added mid-year is not missed for the days before it existed.
+Past days in the day view show what was active then.
 
 Your data carries over untouched.
