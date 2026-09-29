@@ -33,4 +33,26 @@ data class ReminderSettings(
         windows.firstOrNull { it.category == category } ?: WindowReminder(category)
 
     val activeCount: Int get() = if (!enabled) 0 else windows.count { it.enabled }
+
+    /**
+     * Switched on with the six windows that have a prayer time, unless some
+     * were already chosen. Turning on the master switch alone used to arm
+     * nothing at all, which looked exactly like reminders being broken.
+     */
+    fun switchedOn(): ReminderSettings = copy(
+        enabled = true,
+        windows = if (windows.any { it.enabled }) {
+            windows
+        } else {
+            windows.map { it.copy(enabled = it.category in TIMED) }
+        },
+    )
+
+    companion object {
+        /** Windows that open at a computed prayer time; the others need a clock time. */
+        val TIMED = setOf(
+            Category.Fajr, Category.Shuruq, Category.Dhuhr,
+            Category.Asr, Category.Maghrib, Category.Isha,
+        )
+    }
 }

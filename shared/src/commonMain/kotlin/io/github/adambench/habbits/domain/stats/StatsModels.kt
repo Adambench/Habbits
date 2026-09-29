@@ -2,6 +2,7 @@ package io.github.adambench.habbits.domain.stats
 
 import io.github.adambench.habbits.domain.Category
 import io.github.adambench.habbits.domain.Habit
+import io.github.adambench.habbits.domain.HabitStatus
 import kotlinx.datetime.LocalDate
 
 enum class StatsRange(val days: Int?, val label: String) {
@@ -46,8 +47,13 @@ data class HabitStat(
     val rate: Float get() = if (due == 0) 0f else done.toFloat() / due
     val missed: Int get() = (due - done).coerceAtLeast(0)
 
-    /** Missed for long enough that it reads as dropped, not merely intermittent. */
-    val isAbandoned: Boolean get() = currentGap >= ABANDONED_AFTER
+    /**
+     * Missed for long enough that it reads as dropped, not merely intermittent.
+     * A habit deliberately put to sleep was paused, not abandoned.
+     */
+    val isAbandoned: Boolean get() = habit.status == HabitStatus.Active && currentGap >= ABANDONED_AFTER
+
+    val isPaused: Boolean get() = habit.status != HabitStatus.Active
 
     companion object {
         const val ABANDONED_AFTER = 14
@@ -80,8 +86,11 @@ data class StatsSummary(
     val perfectDays: Int = 0,
     /** Every completion in range, including habits excluded from the rates. */
     val totalLogged: Int = 0,
+    /** Habits not active on any day in the window, left out entirely. */
     val excludedHabits: Int = 0,
     val excludedLogged: Int = 0,
+    /** Habits asleep or archived now, counted for the days they were active. */
+    val pausedHabits: Int = 0,
     val isLoading: Boolean = true,
 ) {
     val due: Int get() = days.sumOf { it.due }

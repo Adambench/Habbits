@@ -4,6 +4,7 @@ import android.app.Application
 import android.net.Uri
 import io.github.adambench.habbits.data.FileSettingsStore
 import io.github.adambench.habbits.data.createHabbitsDatabase
+import io.github.adambench.habbits.reminders.ReminderReceiver
 import io.github.adambench.habbits.sync.SafSyncStore
 import java.io.File
 
@@ -27,5 +28,8 @@ class HabbitsApplication : Application() {
         )
         val settings = container.settingsRepository.settings.value
         if (settings.sync.isConfigured) container.bindSync(settings.sync.folder)
+        // Created up front so it is already listed in the system's notification
+        // settings, rather than appearing only after the first reminder.
+        ReminderReceiver.ensureChannel(this)
     }
 }

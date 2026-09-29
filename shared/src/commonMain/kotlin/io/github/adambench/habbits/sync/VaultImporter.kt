@@ -96,6 +96,7 @@ class VaultImporter(
         sortOrder = sortOrder,
         createdAt = now(),
         hlc = clock.next().encode(),
+        statusHistory = encodedStatusHistory(),
     )
 
     companion object {

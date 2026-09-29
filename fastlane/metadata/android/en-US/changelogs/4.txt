@@ -1,0 +1,16 @@
+Reminders that actually arrive, and stats that respect sleeping habits.
+
+Reminders now use exact alarms, so a phone left idle on a desk or nightstand no
+longer holds them back for hours. Each alarm knows which window it is for, so
+Anytime and Before Fajr reminders, and ones set to go off before a window opens,
+now fire. Switching reminders on arms the six prayer windows straight away. They
+re-arm after an app update or a time zone change, and settings now show when the
+next one is due, what is blocking them if anything, and a button to send a test.
+
+Stats now know when a habit was asleep. A habit counts only on the days it was
+awake: one asleep today still gets credit for the months it was done, and one
+woken yesterday is not marked missed for the weeks it slept. A habit added
+mid-year is no longer counted as missed every day before it existed. Past days
+in the day view show what was active then.
+
+Your data carries over untouched.

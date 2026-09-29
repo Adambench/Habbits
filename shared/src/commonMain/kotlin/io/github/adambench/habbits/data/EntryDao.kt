@@ -29,6 +29,13 @@ interface EntryDao {
     @Query("SELECT * FROM entries WHERE habit_id = :habitId ORDER BY date DESC LIMIT :limit")
     suspend fun getRecentForHabit(habitId: String, limit: Int): List<EntryEntity>
 
+    /** First and last completion per habit, from the (habit_id, date) index. */
+    @Query("SELECT habit_id AS habitId, MIN(date) AS firstDay, MAX(date) AS lastDay FROM entries GROUP BY habit_id")
+    suspend fun spans(): List<HabitSpan>
+
+    @Query("SELECT habit_id AS habitId, MIN(date) AS firstDay, MAX(date) AS lastDay FROM entries WHERE habit_id = :habitId GROUP BY habit_id")
+    suspend fun spanOf(habitId: String): HabitSpan?
+
     @Query("SELECT * FROM entries WHERE date = :date AND habit_id = :habitId")
     suspend fun get(date: Long, habitId: String): EntryEntity?
 
@@ -48,3 +55,6 @@ interface EntryDao {
     @Query("DELETE FROM entries WHERE date = :date AND habit_id = :habitId")
     suspend fun delete(date: Long, habitId: String)
 }
+
+/** The first and last epoch day a habit was completed. */
+data class HabitSpan(val habitId: String, val firstDay: Long, val lastDay: Long)

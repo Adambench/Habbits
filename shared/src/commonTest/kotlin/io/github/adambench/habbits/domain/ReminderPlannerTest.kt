@@ -42,6 +42,46 @@ class ReminderPlannerTest {
     }
 
     @Test
+    fun two_windows_on_the_same_minute_share_one_alarm() {
+        // Anytime's clock time lands exactly on Dhuhr + 8.
+        val s = settings(
+            WindowReminder(Category.Anytime, enabled = true, fallbackHour = 13, fallbackMinute = 0),
+            WindowReminder(Category.Dhuhr, enabled = true, offsetMinutes = 8),
+        )
+        val batch = ReminderPlanner.nextBatch(s, LocalDateTime(today, LocalTime(9, 0)), ::times)
+        assertEquals(setOf(Category.Anytime, Category.Dhuhr), batch.map { it.category }.toSet())
+    }
+
+    @Test
+    fun planning_from_a_fired_reminder_moves_on_to_the_next_window() {
+        // A late alarm re-arms from its own time, so Asr is not skipped even if
+        // the Dhuhr alarm itself was delivered after Asr's time.
+        val s = settings(
+            WindowReminder(Category.Dhuhr, enabled = true, offsetMinutes = 0),
+            WindowReminder(Category.Asr, enabled = true, offsetMinutes = 0),
+        )
+        val next = ReminderPlanner.next(s, LocalDateTime(today, LocalTime(12, 52)), ::times)!!
+        assertEquals(Category.Asr, next.category)
+        assertEquals(LocalTime(16, 24), next.at.time)
+    }
+
+    @Test
+    fun switching_reminders_on_arms_the_prayer_windows_when_none_are_chosen() {
+        val on = ReminderSettings().switchedOn()
+        assertTrue(on.enabled)
+        assertEquals(ReminderSettings.TIMED, on.windows.filter { it.enabled }.map { it.category }.toSet())
+        assertEquals(6, on.activeCount, "the master switch alone must arm something")
+    }
+
+    @Test
+    fun switching_reminders_on_keeps_windows_already_chosen() {
+        val chosen = ReminderSettings(
+            windows = Category.entries.map { WindowReminder(it, enabled = it == Category.Isha) },
+        )
+        assertEquals(listOf(Category.Isha), chosen.switchedOn().windows.filter { it.enabled }.map { it.category })
+    }
+
+    @Test
     fun a_negative_offset_fires_before_the_window() {
         val s = settings(WindowReminder(Category.Fajr, enabled = true, offsetMinutes = -15))
         val next = ReminderPlanner.next(s, LocalDateTime(today, LocalTime(2, 0)), ::times)!!

@@ -45,7 +45,17 @@ import io.github.adambench.habbits.domain.Category
 import io.github.adambench.habbits.domain.HighLatitudeRule
 import io.github.adambench.habbits.domain.PrayerClock
 import io.github.adambench.habbits.domain.PrayerMethod
+import io.github.adambench.habbits.domain.ReminderPlanner
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.plus
+import kotlinx.datetime.toLocalDateTime
+import kotlin.time.Clock
+
+/** Something on the device stopping reminders from appearing, and how to fix it. */
+data class ReminderProblem(val message: String, val fixLabel: String)
 
 @Composable
 fun SettingsScreen(
@@ -57,10 +67,16 @@ fun SettingsScreen(
     onSyncNow: (suspend () -> String)? = null,
     /** Called after any reminder change so the platform can re-arm its alarm. */
     onRemindersChanged: (() -> Unit)? = null,
+    /** Kept current by the platform, which re-checks whenever the app resumes. */
+    reminderProblem: StateFlow<ReminderProblem?>? = null,
+    onFixReminders: (() -> Unit)? = null,
+    onTestReminder: (suspend () -> String)? = null,
 ) {
     val settings by repository.settings.collectAsState()
+    val problem = reminderProblem?.collectAsState()?.value
     val scope = rememberCoroutineScope()
     var syncStatus by remember { mutableStateOf<String?>(null) }
+    var testStatus by remember { mutableStateOf<String?>(null) }
     // Recomputed as the settings change, so the effect of a choice is visible
     // before leaving the screen.
     val preview = if (settings.enabled) PrayerClock.timesFor(today, settings) else null
@@ -214,10 +230,49 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             SwitchRow("Remind me", settings.reminders.enabled) {
-                repository.update(settings.copy(reminders = settings.reminders.copy(enabled = it)))
+                val reminders = if (it) settings.reminders.switchedOn() else settings.reminders.copy(enabled = false)
+                repository.update(settings.copy(reminders = reminders))
                 onRemindersChanged?.invoke()
             }
             if (settings.reminders.enabled) {
+                if (problem != null) {
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.errorContainer)
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Text(
+                            text = problem.message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                        if (onFixReminders != null) SmallButton(problem.fixLabel) { onFixReminders() }
+                    }
+                }
+                Text(
+                    text = nextReminderLabel(settings),
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (onTestReminder != null) {
+                    SmallButton("Send a test notification") {
+                        scope.launch {
+                            testStatus = runCatching { onTestReminder() }
+                                .getOrElse { "Test failed: ${it.message}" }
+                        }
+                    }
+                    testStatus?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
                 SwitchRow("Stay quiet when already done", settings.reminders.silentWhenDone) {
                     repository.update(
                         settings.copy(reminders = settings.reminders.copy(silentWhenDone = it)),
@@ -403,6 +458,21 @@ private fun ReminderRow(
             Spacer(Modifier.height(6.dp))
         }
     }
+}
+
+/** When the next reminder goes off, so a silent evening can be told from a broken one. */
+private fun nextReminderLabel(settings: io.github.adambench.habbits.domain.PrayerSettings): String {
+    val zone = TimeZone.currentSystemDefault()
+    val now = Clock.System.now().toLocalDateTime(zone)
+    val next = ReminderPlanner.next(settings.reminders, now) { PrayerClock.timesFor(it, settings, zone) }
+        ?: return "No window is switched on, so nothing will fire."
+    val day = when (next.at.date) {
+        now.date -> "today"
+        now.date.plus(DatePeriod(days = 1)) -> "tomorrow"
+        else -> next.at.date.toString()
+    }
+    val time = "${next.at.hour.toString().padStart(2, '0')}:${next.at.minute.toString().padStart(2, '0')}"
+    return "Next: ${next.category.displayName}, $day at $time"
 }
 
 private fun offsetLabel(minutes: Int): String = when {

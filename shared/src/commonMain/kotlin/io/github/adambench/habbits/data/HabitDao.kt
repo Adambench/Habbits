@@ -38,6 +38,17 @@ interface HabitDao {
     @Query("DELETE FROM habits WHERE id = :id")
     suspend fun deleteById(id: String)
 
+    /** Rows whose status history has never been worked out. */
+    @Query("SELECT * FROM habits WHERE status_history IS NULL")
+    suspend fun getWithoutStatusHistory(): List<HabitEntity>
+
+    /**
+     * Fills in a derived history without stamping a new clock: it is worked out
+     * from data every device already has, so it is not a change to sync.
+     */
+    @Query("UPDATE habits SET status_history = :history WHERE id = :id")
+    suspend fun setStatusHistory(id: String, history: String)
+
     @Query("UPDATE habits SET sort_order = :sortOrder, category = :category, hlc = :hlc WHERE id = :id")
     suspend fun updatePlacement(id: String, category: Int, sortOrder: Int, hlc: String)
 }

@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import io.github.adambench.habbits.domain.HabitStatus
 import io.github.adambench.habbits.domain.stats.HabitStat
 import io.github.adambench.habbits.ui.headerLabel
 import io.github.adambench.habbits.ui.theme.LocalDarkTheme
@@ -150,7 +151,7 @@ fun HabitDetailSheet(stat: HabitStat, onDismiss: () -> Unit) {
 }
 
 /** Plain-language reading of the pattern behind the numbers. */
-private fun verdict(stat: HabitStat): String = when {
+private fun verdict(stat: HabitStat): String = pausedNote(stat) + when {
     stat.due == 0 -> "Not due at all in this window."
     stat.done == 0 -> "Never done in this window — ${stat.due} chances missed."
     stat.isAbandoned ->
@@ -166,6 +167,12 @@ private fun verdict(stat: HabitStat): String = when {
     else ->
         "Intermittent: ${stat.done} of ${stat.due} days, worst gap ${stat.longestGap}, " +
             "bouncing back ${((stat.recoveryRate ?: 0f) * 100).toInt()}% of the time."
+}
+
+private fun pausedNote(stat: HabitStat): String = when (stat.habit.status) {
+    HabitStatus.Active -> ""
+    HabitStatus.Sleeping -> "Asleep now, so only the days it was awake count here. "
+    HabitStatus.Archived -> "Archived now, so only the days it was active count here. "
 }
 
 @Composable

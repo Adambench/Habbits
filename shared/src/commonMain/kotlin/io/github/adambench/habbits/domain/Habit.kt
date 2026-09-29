@@ -19,6 +19,12 @@ data class Habit(
     val intervalStart: LocalDate? = null,
     val status: HabitStatus = HabitStatus.Active,
     val sortOrder: Int = 0,
+    /**
+     * When the habit was active, sleeping or archived, oldest first. Empty only
+     * for a habit not yet backfilled, which then reads as always having had
+     * [status]. See [StatusHistory].
+     */
+    val statusHistory: List<StatusChange> = emptyList(),
 ) {
     val isMeasured: Boolean get() = !unit.isNullOrBlank()
 

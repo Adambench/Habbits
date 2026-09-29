@@ -9,7 +9,9 @@ import androidx.compose.ui.Modifier
 import io.github.adambench.habbits.data.SettingsRepository
 import io.github.adambench.habbits.ui.manage.ManageScreen
 import io.github.adambench.habbits.ui.manage.ManageScreenModel
+import io.github.adambench.habbits.ui.settings.ReminderProblem
 import io.github.adambench.habbits.ui.settings.SettingsScreen
+import kotlinx.coroutines.flow.StateFlow
 import io.github.adambench.habbits.ui.stats.StatsScreen
 import io.github.adambench.habbits.ui.stats.StatsScreenModel
 import kotlinx.datetime.LocalDate
@@ -33,6 +35,9 @@ fun AppRoot(
     onPickSyncFolder: (() -> Unit)? = null,
     onSyncNow: (suspend () -> String)? = null,
     onRemindersChanged: (() -> Unit)? = null,
+    reminderProblem: StateFlow<ReminderProblem?>? = null,
+    onFixReminders: (() -> Unit)? = null,
+    onTestReminder: (suspend () -> String)? = null,
 ) {
     var screen by remember { mutableStateOf(Screen.Day) }
 
@@ -70,6 +75,9 @@ fun AppRoot(
             onPickSyncFolder = onPickSyncFolder,
             onSyncNow = onSyncNow,
             onRemindersChanged = onRemindersChanged,
+            reminderProblem = reminderProblem,
+            onFixReminders = onFixReminders,
+            onTestReminder = onTestReminder,
         )
     }
 }

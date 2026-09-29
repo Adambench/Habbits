@@ -54,12 +54,27 @@ object ReminderPlanner {
             .sortedBy { it.at }
     }
 
-    /** The soonest reminder, which is the only one an alarm needs to hold. */
+    /** The soonest reminder. */
     fun next(
         settings: ReminderSettings,
         now: LocalDateTime,
         timesFor: (LocalDate) -> DayPrayerTimes,
     ): PlannedReminder? = plan(settings, now, timesFor).firstOrNull()
+
+    /**
+     * Every reminder due at the soonest time, which is what one alarm has to
+     * carry. Two windows landing on the same minute would otherwise lose one,
+     * since the next alarm is planned from strictly after this one.
+     */
+    fun nextBatch(
+        settings: ReminderSettings,
+        now: LocalDateTime,
+        timesFor: (LocalDate) -> DayPrayerTimes,
+    ): List<PlannedReminder> {
+        val plan = plan(settings, now, timesFor)
+        val first = plan.firstOrNull() ?: return emptyList()
+        return plan.filter { it.at == first.at }
+    }
 
     private fun fireTime(window: WindowReminder, times: DayPrayerTimes): LocalTime? {
         val base = times[window.category]

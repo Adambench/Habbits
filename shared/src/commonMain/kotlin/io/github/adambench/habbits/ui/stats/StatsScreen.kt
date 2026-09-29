@@ -32,6 +32,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.github.adambench.habbits.domain.HabitStatus
 import io.github.adambench.habbits.domain.stats.HabitStat
 import io.github.adambench.habbits.domain.stats.StatsRange
 import io.github.adambench.habbits.domain.stats.StatsSummary
@@ -170,16 +171,29 @@ fun StatsScreen(
                 }
             }
 
-            if (s.excludedHabits > 0) {
-                Text(
-                    text = "${s.excludedHabits} sleeping or archived habits are left out of " +
-                        "these rates, since they were not expected on any day. They account " +
-                        "for ${s.excludedLogged} of the ${s.totalLogged} completions logged " +
-                        "in this window.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            Text(
+                text = buildString {
+                    append(
+                        "A habit counts only on the days it was due and awake. Days asleep, " +
+                            "and days before it was first done, count neither for it nor against it.",
+                    )
+                    if (s.pausedHabits > 0) {
+                        append(
+                            " ${s.pausedHabits} habits asleep or archived now are included for " +
+                                "the days they were active.",
+                        )
+                    }
+                    if (s.excludedHabits > 0) {
+                        append(
+                            " ${s.excludedHabits} were not active on any day in this window and " +
+                                "are left out; they account for ${s.excludedLogged} of the " +
+                                "${s.totalLogged} completions logged.",
+                        )
+                    }
+                },
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -275,6 +289,7 @@ private fun HabitRow(stat: HabitStat, showCategory: Boolean, onClick: () -> Unit
         Spacer(Modifier.height(3.dp))
         Text(
             text = buildString {
+                if (stat.isPaused) append("${stat.habit.status.displayLabel} · ")
                 append("${stat.done}/${stat.due} days")
                 stat.total?.let { append(" · $it ${stat.habit.unit.orEmpty()}") }
                 if (stat.longestStreak > 0) append(" · best ${stat.longestStreak}")
@@ -284,6 +299,13 @@ private fun HabitRow(stat: HabitStat, showCategory: Boolean, onClick: () -> Unit
         )
     }
 }
+
+private val HabitStatus.displayLabel: String
+    get() = when (this) {
+        HabitStatus.Active -> "Active"
+        HabitStatus.Sleeping -> "Asleep"
+        HabitStatus.Archived -> "Archived"
+    }
 
 @Composable
 private fun Pill(text: String, filled: Boolean, onClick: () -> Unit) {

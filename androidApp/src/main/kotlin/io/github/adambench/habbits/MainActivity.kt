@@ -1,7 +1,10 @@
 package io.github.adambench.habbits
 
+import android.app.AlarmManager
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -11,18 +14,82 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import android.os.Build
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
 import io.github.adambench.habbits.reminders.ReminderReceiver
 import io.github.adambench.habbits.reminders.ReminderScheduler
 import io.github.adambench.habbits.ui.AppRoot
+import io.github.adambench.habbits.ui.settings.ReminderProblem
 import io.github.adambench.habbits.ui.theme.HabbitsTheme
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
 
     private val container by lazy { (application as HabbitsApplication).container }
+
+    /** What is stopping reminders on this device, if anything. */
+    private enum class ReminderBlock(val problem: ReminderProblem) {
+        Notifications(
+            ReminderProblem(
+                "Notifications for Habbits are off in system settings, so no reminder can appear.",
+                "Open notification settings",
+            ),
+        ),
+        Channel(
+            ReminderProblem(
+                "The \"Habit reminders\" category is switched off in system settings.",
+                "Open notification settings",
+            ),
+        ),
+        ExactAlarms(
+            ReminderProblem(
+                "\"Alarms & reminders\" is not allowed, so reminders can arrive late while the phone is idle.",
+                "Allow",
+            ),
+        ),
+    }
+
+    private val reminderBlock = MutableStateFlow<ReminderBlock?>(null)
+    private val reminderProblem = MutableStateFlow<ReminderProblem?>(null)
+
+    private fun refreshReminderProblem() {
+        val block = when {
+            !container.settingsRepository.settings.value.reminders.enabled -> null
+            !NotificationManagerCompat.from(this).areNotificationsEnabled() -> ReminderBlock.Notifications
+            ReminderReceiver.isChannelBlocked(this) -> ReminderBlock.Channel
+            getSystemService(AlarmManager::class.java)
+                ?.let { !ReminderScheduler.canScheduleExact(it) } == true -> ReminderBlock.ExactAlarms
+            else -> null
+        }
+        reminderBlock.value = block
+        reminderProblem.value = block?.problem
+    }
+
+    private fun openReminderFix() {
+        val intent = when (reminderBlock.value) {
+            ReminderBlock.Channel -> Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                .putExtra(Settings.EXTRA_CHANNEL_ID, ReminderReceiver.CHANNEL_ID)
+            ReminderBlock.ExactAlarms -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, "package:$packageName".toUri())
+            } else {
+                null
+            }
+            ReminderBlock.Notifications, null -> Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+        } ?: return
+        runCatching { startActivity(intent) }
+    }
+
+    private fun hasNotificationPermission(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -91,6 +158,7 @@ class MainActivity : ComponentActivity() {
                 if (granted) {
                     ReminderReceiver.ensureChannel(this@MainActivity)
                     ReminderScheduler.reschedule(this@MainActivity, container)
+                    refreshReminderProblem()
                 } else {
                     // Without the permission a reminder can never appear, so the
                     // setting is turned back off rather than silently doing nothing.
@@ -115,11 +183,23 @@ class MainActivity : ComponentActivity() {
                     onPickSyncFolder = { folderPicker.launch(null) },
                     onRemindersChanged = {
                         val enabled = container.settingsRepository.settings.value.reminders.enabled
-                        if (enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        if (enabled && !hasNotificationPermission()) {
                             notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
                         } else {
                             ReminderReceiver.ensureChannel(this@MainActivity)
                             ReminderScheduler.reschedule(this@MainActivity, container)
+                            refreshReminderProblem()
+                        }
+                    },
+                    reminderProblem = reminderProblem,
+                    onFixReminders = ::openReminderFix,
+                    onTestReminder = {
+                        val posted = ReminderReceiver.sendTest(this@MainActivity, container)
+                        refreshReminderProblem()
+                        if (posted) {
+                            "Sent. If nothing appeared, check Do Not Disturb and the notification settings."
+                        } else {
+                            "Could not post it: notifications are blocked for Habbits."
                         }
                     },
                     onSyncNow = {
@@ -135,6 +215,12 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Coming back from system settings is how most problems get fixed.
+        refreshReminderProblem()
     }
 
     override fun onPause() {

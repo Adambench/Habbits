@@ -61,4 +61,12 @@ data class HabitEntity(
     /** Hybrid logical clock of the write that produced this row. */
     @ColumnInfo(name = "hlc")
     val hlc: String,
+
+    /**
+     * [io.github.adambench.habbits.domain.StatusHistory], encoded. Null until
+     * backfilled: rows written before version 2, or synced from a device still
+     * running one, have none.
+     */
+    @ColumnInfo(name = "status_history")
+    val statusHistory: String? = null,
 )

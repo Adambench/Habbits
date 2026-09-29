@@ -4,6 +4,7 @@ import io.github.adambench.habbits.domain.Category
 import io.github.adambench.habbits.domain.FrequencyType
 import io.github.adambench.habbits.domain.Habit
 import io.github.adambench.habbits.domain.HabitStatus
+import io.github.adambench.habbits.domain.StatusChange
 import io.github.adambench.habbits.domain.Weekdays
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
@@ -109,6 +110,69 @@ class StatsCalculatorTest {
         assertEquals(1, s.excludedHabits)
         assertEquals(1, s.excludedLogged, "its history is still reported, not hidden")
         assertEquals(2, s.totalLogged)
+    }
+
+    @Test
+    fun a_habit_asleep_now_counts_for_the_days_it_was_awake() {
+        // Awake Mon 7th to Wed 9th, asleep from Thursday.
+        val napping = daily.copy(
+            id = "nap", status = HabitStatus.Sleeping,
+            statusHistory = listOf(StatusChange(day(1), HabitStatus.Active), StatusChange(day(10), HabitStatus.Sleeping)),
+        )
+        val s = compute(listOf(napping), listOf(8, 9).map { Completion(day(it), "nap", null) })
+        val stat = s.habits.single()
+        assertEquals(3, stat.due, "Mon to Wed only")
+        assertEquals(2, stat.done)
+        assertEquals(1, s.pausedHabits)
+        assertEquals(0, s.excludedHabits)
+        assertEquals(0, s.days.first { it.date == day(12) }.due, "not due while asleep")
+    }
+
+    @Test
+    fun a_woken_habit_is_not_marked_missed_while_it_slept() {
+        val woken = daily.copy(
+            id = "woken",
+            statusHistory = listOf(
+                StatusChange(day(1), HabitStatus.Active),
+                StatusChange(day(7), HabitStatus.Sleeping),
+                StatusChange(day(12), HabitStatus.Active),
+            ),
+        )
+        val s = compute(listOf(woken), listOf(Completion(day(12), "woken", null)))
+        val stat = s.habits.single()
+        assertEquals(2, stat.due, "Saturday and Sunday, after waking")
+        assertEquals(1, stat.done)
+        assertEquals(1, stat.currentStreak, "an unfinished today does not break it")
+    }
+
+    @Test
+    fun a_habit_is_not_missed_before_it_existed() {
+        val added = daily.copy(id = "new", statusHistory = listOf(StatusChange(day(11), HabitStatus.Active)))
+        val s = compute(listOf(added), listOf(11, 12).map { Completion(day(it), "new", null) })
+        assertEquals(3, s.habits.single().due, "Friday to Sunday, not the whole week")
+    }
+
+    @Test
+    fun a_completion_before_a_habit_was_added_still_counts() {
+        // Added on Saturday, then logged for Friday as well.
+        val added = daily.copy(id = "new", statusHistory = listOf(StatusChange(day(12), HabitStatus.Active)))
+        val s = compute(listOf(added), listOf(11, 12).map { Completion(day(it), "new", null) })
+        val stat = s.habits.single()
+        assertEquals(3, stat.due)
+        assertEquals(2, stat.done)
+    }
+
+    @Test
+    fun a_sleeping_habit_reads_as_paused_not_abandoned() {
+        val napping = daily.copy(
+            id = "nap", status = HabitStatus.Sleeping,
+            statusHistory = listOf(StatusChange(LocalDate(2026, 8, 1), HabitStatus.Active), StatusChange(day(13), HabitStatus.Sleeping)),
+        )
+        val s = StatsCalculator.compute(listOf(napping), emptyList(), StatsRange.Month, today, earliest = LocalDate(2026, 8, 1))
+        val stat = s.habits.single()
+        assertTrue(stat.currentGap >= HabitStat.ABANDONED_AFTER, "missed for weeks before it slept")
+        assertTrue(stat.isPaused)
+        assertTrue(!stat.isAbandoned, "put to sleep on purpose, so not dropped")
     }
 
     @Test

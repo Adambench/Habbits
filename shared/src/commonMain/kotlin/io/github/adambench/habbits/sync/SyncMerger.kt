@@ -8,6 +8,8 @@ import io.github.adambench.habbits.domain.FrequencyType
 import io.github.adambench.habbits.domain.Habit
 import io.github.adambench.habbits.domain.HabitStatus
 import io.github.adambench.habbits.domain.HabitType
+import io.github.adambench.habbits.domain.StatusChange
+import io.github.adambench.habbits.domain.StatusHistory
 import io.github.adambench.habbits.domain.Weekdays
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.json.Json
@@ -119,7 +121,19 @@ internal fun ExportHabit.toEntity(hlc: String): HabitEntity = HabitEntity(
     sortOrder = sortOrder,
     createdAt = 0L,
     hlc = hlc,
+    statusHistory = encodedStatusHistory(),
 )
+
+/** Null when the export carries none, so the row is backfilled locally instead. */
+internal fun ExportHabit.encodedStatusHistory(): String? =
+    statusHistory
+        ?.mapNotNull { change ->
+            val date = runCatching { LocalDate.parse(change.date) }.getOrNull() ?: return@mapNotNull null
+            StatusChange(date, HabitStatus.fromStorageId(change.status))
+        }
+        ?.sortedBy { it.date }
+        ?.takeIf { it.isNotEmpty() }
+        ?.let(StatusHistory::encode)
 
 internal fun Habit.toExport(): ExportHabit = ExportHabit(
     id = id,
@@ -136,4 +150,6 @@ internal fun Habit.toExport(): ExportHabit = ExportHabit(
     intervalStart = intervalStart?.toString(),
     status = status.storageId,
     sortOrder = sortOrder,
+    statusHistory = statusHistory.takeIf { it.isNotEmpty() }
+        ?.map { ExportStatusChange(it.date.toString(), it.status.storageId) },
 )

@@ -3,7 +3,7 @@ package io.github.adambench.habbits.domain.stats
 import io.github.adambench.habbits.domain.Category
 import io.github.adambench.habbits.domain.Habit
 import io.github.adambench.habbits.domain.HabitStatus
-import io.github.adambench.habbits.domain.isScheduledOn
+import io.github.adambench.habbits.domain.countsOn
 import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.isoDayNumber
@@ -21,7 +21,9 @@ data class Completion(val date: LocalDate, val habitId: String, val value: Int?)
  *
  * The central rule is that **a habit only counts on days it was actually due**.
  * Dividing completions by calendar days would punish a Friday-only habit for
- * the six days a week it was never meant to appear.
+ * the six days a week it was never meant to appear, and "due" also means active
+ * at the time — a habit's days asleep, and the days before it existed, count
+ * neither for it nor against it.
  */
 object StatsCalculator {
 
@@ -32,40 +34,54 @@ object StatsCalculator {
         today: LocalDate,
         earliest: LocalDate? = null,
     ): StatsSummary {
-        // Only active habits can be "due". A sleeping or archived habit is not
-        // expected today, so counting it as missed would be a lie.
-        val counted = habits.filter { it.status == HabitStatus.Active }
-        val countedIds = counted.mapTo(HashSet()) { it.id }
-
         val start = when {
             range.days != null -> today.minus(DatePeriod(days = range.days - 1))
             else -> earliest ?: completions.minOfOrNull { it.date } ?: today
         }
         val from = if (range.days == null) start else maxOf(start, earliest ?: start)
 
-        val inRange = completions.filter { it.date in from..today }
-        val doneByDate = inRange.filter { it.habitId in countedIds }
-            .groupBy { it.date }
-            .mapValues { (_, list) -> list.mapTo(HashSet()) { it.habitId } }
-
         val dates = generateSequence(from) { it.plus(DatePeriod(days = 1)) }
             .takeWhile { it <= today }
             .toList()
 
+        val inRange = completions.filter { it.date in from..today }
+        val completionsByHabit = inRange.groupBy { it.habitId }
+        val doneDatesByHabit = completionsByHabit.mapValues { (_, list) -> list.mapTo(HashSet()) { it.date } }
+
+        // A habit counts only on days it was due *and* active at the time. One
+        // asleep today still counts for the months it was done, and one woken
+        // yesterday is not marked missed for the weeks it slept.
+        val dueDatesByHabit = habits.associate { habit ->
+            val doneDates = doneDatesByHabit[habit.id].orEmpty()
+            habit.id to dates.filter { habit.countsOn(it, today, completed = it in doneDates) }
+        }
+        val counted = habits.filter {
+            it.status == HabitStatus.Active || dueDatesByHabit[it.id].orEmpty().isNotEmpty()
+        }
+        val countedIds = counted.mapTo(HashSet()) { it.id }
+
+        val doneByDate = inRange.filter { it.habitId in countedIds }
+            .groupBy { it.date }
+            .mapValues { (_, list) -> list.mapTo(HashSet()) { it.habitId } }
+
         // --- per day ---
-        val dueByDate = HashMap<LocalDate, List<Habit>>(dates.size)
+        val dueByDate = HashMap<LocalDate, MutableList<Habit>>(dates.size)
+        counted.forEach { habit ->
+            dueDatesByHabit[habit.id].orEmpty().forEach { date ->
+                dueByDate.getOrPut(date) { mutableListOf() } += habit
+            }
+        }
         val days = dates.map { date ->
-            val due = counted.filter { it.isScheduledOn(date) }
-            dueByDate[date] = due
+            val due = dueByDate[date].orEmpty()
             val doneIds = doneByDate[date].orEmpty()
             DayStat(date, due.size, due.count { it.id in doneIds })
         }
 
         // --- per habit ---
-        val completionsByHabit = inRange.groupBy { it.habitId }
         val habitStats = counted.map { habit ->
-            val dueDates = dates.filter { habit.isScheduledOn(it) }
-            val doneDates = completionsByHabit[habit.id].orEmpty().mapTo(HashSet()) { it.date }
+            val dueDates = dueDatesByHabit[habit.id].orEmpty()
+            val dueSet = dueDates.toHashSet()
+            val doneDates = doneDatesByHabit[habit.id].orEmpty()
             val hit = dueDates.filter { it in doneDates }
             val values = completionsByHabit[habit.id].orEmpty().mapNotNull { it.value }
             val gaps = gapRuns(dueDates, doneDates, today)
@@ -81,7 +97,7 @@ object StatsCalculator {
                 currentGap = currentGap(dueDates, doneDates, today),
                 recoveryRate = recoveryRate(dueDates, doneDates),
                 days = dates.map { date ->
-                    HabitDay(date, habit.isScheduledOn(date), date in doneDates)
+                    HabitDay(date, date in dueSet, date in doneDates)
                 },
             )
         }.sortedByDescending { it.rate }
@@ -92,13 +108,10 @@ object StatsCalculator {
             if (members.isEmpty()) return@mapNotNull null
             var due = 0
             var done = 0
-            dates.forEach { date ->
-                val doneIds = doneByDate[date].orEmpty()
-                members.forEach { habit ->
-                    if (habit.isScheduledOn(date)) {
-                        due++
-                        if (habit.id in doneIds) done++
-                    }
+            members.forEach { habit ->
+                dueDatesByHabit[habit.id].orEmpty().forEach { date ->
+                    due++
+                    if (habit.id in doneByDate[date].orEmpty()) done++
                 }
             }
             CategoryStat(category, due, done)
@@ -117,7 +130,7 @@ object StatsCalculator {
             WeekStat(start, group.sumOf { it.due }, group.sumOf { it.done })
         }.sortedBy { it.start }
 
-        val excludedIds = habits.filter { it.status != HabitStatus.Active }.mapTo(HashSet()) { it.id }
+        val excludedIds = habits.filter { it.id !in countedIds }.mapTo(HashSet()) { it.id }
 
         return StatsSummary(
             range = range,
@@ -134,6 +147,7 @@ object StatsCalculator {
             totalLogged = inRange.size,
             excludedHabits = excludedIds.size,
             excludedLogged = inRange.count { it.habitId in excludedIds },
+            pausedHabits = counted.count { it.status != HabitStatus.Active },
             isLoading = false,
         )
     }

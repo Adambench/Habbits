@@ -43,6 +43,9 @@ class StatsScreenModel(
         scope.launch {
             val now = today()
             val summary = withContext(Dispatchers.Default) {
+                // Habits from before history was recorded need one first, or
+                // they fall back to reading today's status as their whole past.
+                repository.backfillStatusHistory()
                 val habits = repository.getHabits()
                 val earliestDay = entryDao.earliestDate()
                 val earliest = earliestDay?.let { LocalDate.fromEpochDays(it) }

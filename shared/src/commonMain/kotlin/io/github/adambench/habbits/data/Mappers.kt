@@ -5,6 +5,7 @@ import io.github.adambench.habbits.domain.FrequencyType
 import io.github.adambench.habbits.domain.Habit
 import io.github.adambench.habbits.domain.HabitStatus
 import io.github.adambench.habbits.domain.HabitType
+import io.github.adambench.habbits.domain.StatusHistory
 import io.github.adambench.habbits.domain.Weekdays
 import kotlinx.datetime.LocalDate
 
@@ -30,6 +31,7 @@ fun HabitEntity.toDomain(): Habit = Habit(
     intervalStart = intervalStart?.let { LocalDate.fromEpochDays(it) },
     status = HabitStatus.entries.atOrFirst(status),
     sortOrder = sortOrder,
+    statusHistory = statusHistory?.let(StatusHistory::decode).orEmpty(),
 )
 
 fun Habit.toEntity(hlc: String, createdAt: Long): HabitEntity = HabitEntity(
@@ -49,4 +51,5 @@ fun Habit.toEntity(hlc: String, createdAt: Long): HabitEntity = HabitEntity(
     sortOrder = sortOrder,
     createdAt = createdAt,
     hlc = hlc,
+    statusHistory = statusHistory.takeIf { it.isNotEmpty() }?.let(StatusHistory::encode),
 )

@@ -8,7 +8,9 @@ import io.github.adambench.habbits.domain.DayPrayerTimes
 import io.github.adambench.habbits.domain.Habit
 import io.github.adambench.habbits.domain.PrayerClock
 import io.github.adambench.habbits.domain.PrayerSettings
-import io.github.adambench.habbits.domain.isVisibleOn
+import io.github.adambench.habbits.domain.HabitStatus
+import io.github.adambench.habbits.domain.countsOn
+import io.github.adambench.habbits.domain.isShownOn
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.BufferOverflow
@@ -58,7 +60,9 @@ class DayScreenModel(
         .flatMapLatest { date ->
             val week = weekOf(date)
             combine(
-                repository.observeActiveHabits(),
+                // Every habit, archived included: a past day shows what was
+                // active then, which need not be what is active now.
+                repository.observeHabits(),
                 repository.observeDay(date),
                 repository.observeRange(week.first(), week.last()),
                 settingsRepository.settings,
@@ -71,6 +75,10 @@ class DayScreenModel(
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = DayUiState(selectedDate.value, today()),
         )
+
+    init {
+        scope.launch { repository.backfillStatusHistory() }
+    }
 
     fun selectDate(date: LocalDate) {
         selectedDate.value = date
@@ -125,7 +133,7 @@ class DayScreenModel(
         // A window is only "live" on the day it belongs to.
         val live = if (settings.enabled && date == now) prayerTimes.windowAt(nowTime()) else null
 
-        val due = habits.filter { it.isVisibleOn(date) }
+        val due = habits.filter { it.isShownOn(date, now) }
         val sections = Category.entries.mapNotNull { category ->
             val rows = due.filter { it.category == category }
                 .map { habit ->
@@ -147,14 +155,15 @@ class DayScreenModel(
             }
         }
         val week = weekOf(date).map { day ->
-            val dayHabits = habits.count { it.isVisibleOn(day) }
             val dayLog = rangeLogs[day] ?: DayLog.Empty
+            // Counted exactly as the stats count them, so the two always agree.
+            val counted = habits.filter { it.countsOn(day, now, dayLog.isCompleted(it.id)) }
             DayChip(
                 date = day,
                 // Only count completions for habits actually due that day, so a
                 // retired habit's history cannot push a day above 100%.
-                completed = habits.count { it.isVisibleOn(day) && dayLog.isCompleted(it.id) },
-                total = dayHabits,
+                completed = counted.count { dayLog.isCompleted(it.id) },
+                total = counted.size,
                 isSelected = day == date,
                 isToday = day == now,
             )
@@ -166,7 +175,7 @@ class DayScreenModel(
             sections = sections,
             week = week,
             isLoading = false,
-            hasAnyHabits = habits.isNotEmpty(),
+            hasAnyHabits = habits.any { it.status != HabitStatus.Archived },
             prayerTimes = prayerTimes,
             liveCategory = live,
             autoScroll = settings.autoScroll,

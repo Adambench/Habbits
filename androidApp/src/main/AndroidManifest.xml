@@ -2,13 +2,22 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!--
-      The only two permissions the app declares, and both exist solely for
-      reminders, which are off by default. Notifications are requested at the
-      moment reminders are switched on, not at first launch. Exact alarms are
-      deliberately not requested: the reminder uses an inexact window instead.
+      Every permission here exists solely for reminders, which are off by
+      default. Notifications are requested at the moment reminders are switched
+      on, not at first launch.
+
+      Exact alarms: an inexact one is held back while the phone dozes, which on
+      a desk or nightstand means hours, and reminders effectively never came.
+      USE_EXACT_ALARM is granted at install on Android 13+ for apps whose core
+      job is timed reminders; SCHEDULE_EXACT_ALARM covers 12 and 12L, where it
+      is granted by default.
     -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission
+        android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        android:maxSdkVersion="32" />
 
     <application
         android:name=".HabbitsApplication"
@@ -38,8 +47,14 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="io.github.adambench.habbits.REMINDER" />
-                <!-- Alarms do not survive a reboot, so they are re-armed here. -->
+                <!--
+                  Alarms do not survive a reboot or an app update, and a clock or
+                  time zone change moves every prayer time, so each re-arms.
+                -->
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
             </intent-filter>
         </receiver>
     </application>

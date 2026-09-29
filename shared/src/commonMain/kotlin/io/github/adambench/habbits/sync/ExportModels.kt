@@ -54,6 +54,15 @@ data class ExportHabit(
     val intervalStart: String? = null,
     val status: String? = null,
     val sortOrder: Int = 0,
+    /** Absent from vault exports and from events written before version 1.3. */
+    val statusHistory: List<ExportStatusChange>? = null,
+)
+
+@Serializable
+data class ExportStatusChange(
+    /** ISO `yyyy-MM-dd`. */
+    val date: String,
+    val status: String,
 )
 
 @Serializable
