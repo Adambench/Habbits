@@ -72,6 +72,9 @@ fun main(args: Array<String>) {
         exitProcess(if (report.hasProblems) 2 else 0)
     }
 
+    // Before the window opens, so nothing can be logged mid-migration.
+    runBlocking { runCatching { container.runMigrations() } }
+
     val scope = CoroutineScope(SupervisorJob())
     val dayModel = container.dayScreenModel(scope)
     val manageModel = container.manageScreenModel(scope)

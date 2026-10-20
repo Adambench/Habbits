@@ -51,6 +51,8 @@ data class PrayerSettings(
     val appearance: Appearance = Appearance(),
     val sync: SyncSettings = SyncSettings(),
     val reminders: ReminderSettings = ReminderSettings(),
+    /** One-time data migrations this device has run or seen another device run. */
+    val completedMigrations: Set<String> = emptySet(),
 ) {
     companion object {
         const val MONTREAL_LATITUDE = 45.5019

@@ -1,5 +1,6 @@
 package io.github.adambench.habbits
 
+import io.github.adambench.habbits.data.ChafrWitrMigration
 import io.github.adambench.habbits.data.HabbitsDatabase
 import io.github.adambench.habbits.data.HabitRepository
 import io.github.adambench.habbits.data.SettingsRepository
@@ -111,6 +112,37 @@ class AppContainer(
     }
 
     fun compactSync(): Int? = journal?.compactOwnLog()
+
+    /**
+     * One-time data migrations, run at launch. Each is recorded in this
+     * device's settings once done, so later launches cost a settings read.
+     */
+    suspend fun runMigrations() {
+        val done = settingsRepository.settings.value.completedMigrations
+        if (ChafrWitrMigration.NAME in done) return
+        val migration = ChafrWitrMigration(database, clock, journalProxy)
+        when (migration.state()) {
+            ChafrWitrMigration.State.Absent -> return
+            ChafrWitrMigration.State.Settled -> Unit
+            ChafrWitrMigration.State.Pending -> {
+                // Merge first, so the shift covers what other devices logged
+                // and sees their marker if one of them has already run it.
+                // An unreadable folder waits for a later launch rather than
+                // shifting blind.
+                val current = store
+                val appliedElsewhere = current != null &&
+                    runCatching { syncNow(); migration.appliedIn(current) }.getOrElse { return }
+                if (!appliedElsewhere) {
+                    migration.apply()
+                    journal?.flush()
+                }
+            }
+        }
+        val settings = settingsRepository.settings.value
+        settingsRepository.update(
+            settings.copy(completedMigrations = settings.completedMigrations + ChafrWitrMigration.NAME),
+        )
+    }
 
     fun manageScreenModel(scope: CoroutineScope): ManageScreenModel =
         ManageScreenModel(repository, scope) { "habit_${now()}" }

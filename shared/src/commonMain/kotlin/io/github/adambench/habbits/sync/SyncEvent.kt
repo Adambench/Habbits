@@ -60,3 +60,17 @@ data class HabitDeleted(
 ) : SyncEvent {
     override val key: String get() = "h:$id"
 }
+
+/**
+ * Marks a one-time data migration as done, so a device that has not run it yet
+ * sees, once it merges, that another device already has — and does not apply
+ * it a second time. Carries no state of its own; merging ignores it.
+ */
+@Serializable
+@SerialName("migration")
+data class MigrationApplied(
+    val name: String,
+    override val hlc: String,
+) : SyncEvent {
+    override val key: String get() = "m:$name"
+}

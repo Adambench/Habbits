@@ -39,6 +39,12 @@ interface EntryDao {
     @Query("SELECT * FROM entries WHERE date = :date AND habit_id = :habitId")
     suspend fun get(date: Long, habitId: String): EntryEntity?
 
+    @Query("SELECT * FROM entries WHERE habit_id = :habitId ORDER BY date ASC")
+    suspend fun getAllForHabit(habitId: String): List<EntryEntity>
+
+    @Query("DELETE FROM entries WHERE habit_id = :habitId")
+    suspend fun deleteAllForHabit(habitId: String)
+
     @Query("SELECT COUNT(*) FROM entries")
     suspend fun count(): Int
 

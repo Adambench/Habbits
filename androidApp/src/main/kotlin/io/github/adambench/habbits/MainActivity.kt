@@ -99,6 +99,9 @@ class MainActivity : ComponentActivity() {
         val manageModel = container.manageScreenModel(lifecycleScope)
         val statsModel = container.statsScreenModel(lifecycleScope)
 
+        // The day screen observes the database, so it picks up the result.
+        lifecycleScope.launch(Dispatchers.IO) { runCatching { container.runMigrations() } }
+
         setContent {
             // The system picker grants read access to exactly one file, so the
             // app still needs no storage permission.
