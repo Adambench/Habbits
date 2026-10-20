@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to create and release, e.g. v1.3.1'
+        required: true
 
 permissions:
   contents: write
@@ -72,6 +76,10 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
+          # A manual run is not on a tag, so it names one and the release
+          # creates it on the commit that was built.
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
           files: |
             ${{ env.APK }}
             desktopApp/build/compose/binaries/main/deb/*.deb
