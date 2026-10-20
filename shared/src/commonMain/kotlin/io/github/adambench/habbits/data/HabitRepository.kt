@@ -1,5 +1,6 @@
 package io.github.adambench.habbits.data
 
+import io.github.adambench.habbits.domain.Category
 import io.github.adambench.habbits.domain.Habit
 import io.github.adambench.habbits.domain.HabitStatus
 import io.github.adambench.habbits.domain.StatusChange
@@ -35,6 +36,8 @@ class HabitRepository(
     private val journal: SyncJournal = SyncJournal.None,
     /** The local calendar date, which is what a status change is dated by. */
     private val today: () -> LocalDate = { Clock.System.todayIn(TimeZone.currentSystemDefault()) },
+    /** Runs a block as one database transaction. The default is for tests that need none. */
+    private val transaction: suspend (suspend () -> Unit) -> Unit = { it() },
 ) {
 
     fun observeHabits(): Flow<List<Habit>> =
@@ -150,6 +153,54 @@ class HabitRepository(
                 )
             }
         }
+    }
+
+    /**
+     * Moves a habit across midnight, taking its history with it.
+     *
+     * A Before Fajr entry is dated by the morning the window falls in, so a
+     * Witr prayed on the night of the 14th is stored on the 15th; under Isha
+     * the same prayer belongs to the 14th. So moving Before Fajr to Isha moves
+     * every entry a day earlier, and Isha to Before Fajr a day later. Each is
+     * the exact undo of the other. The habit lands last in its new window.
+     *
+     * Every entry moves by the same day, so no two can land on the same date.
+     * Returns false, changing nothing, for a habit in any other window.
+     */
+    suspend fun moveAcrossMidnight(id: String): Boolean {
+        var habit: Habit? = null
+        var habitHlc = ""
+        var before = emptyList<EntryEntity>()
+        var after = emptyList<EntryEntity>()
+        transaction body@{
+            val row = habitDao.getById(id) ?: return@body
+            val (target, shift) = when (row.category) {
+                Category.BeforeFajr.ordinal -> Category.Isha to -1
+                Category.Isha.ordinal -> Category.BeforeFajr to 1
+                else -> return@body
+            }
+            before = entryDao.getAllForHabit(id)
+            after = before.map { it.copy(date = it.date + shift, hlc = clock.next().encode()) }
+            entryDao.deleteAllForHabit(id)
+            entryDao.upsertAll(after)
+
+            // Ordered by window, then sort order, so the largest goes last.
+            val sortOrder = (habitDao.getAll().maxOfOrNull { it.sortOrder } ?: 0) + 1
+            val hlc = clock.next().encode()
+            habitDao.updatePlacement(id, target.ordinal, sortOrder, hlc)
+            habit = row.toDomain().copy(category = target, sortOrder = sortOrder)
+            habitHlc = hlc
+        }
+        val moved = habit ?: return false
+
+        // Recorded only once the transaction has committed.
+        journal.record(HabitSaved(moved.toExport(), habitHlc))
+        after.forEach { journal.record(EntrySet(id, it.date, it.value, it.hlc)) }
+        // A day left with no entry needs a tombstone, or other devices keep it.
+        val stillDone = after.mapTo(HashSet()) { it.date }
+        before.filter { it.date !in stillDone }
+            .forEach { journal.record(EntryCleared(id, it.date, clock.next().encode())) }
+        return true
     }
 
     suspend fun setStatus(id: String, status: HabitStatus) {
