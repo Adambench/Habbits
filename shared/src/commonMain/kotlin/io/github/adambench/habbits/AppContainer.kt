@@ -1,5 +1,7 @@
 package io.github.adambench.habbits
 
+import androidx.room.immediateTransaction
+import androidx.room.useWriterConnection
 import io.github.adambench.habbits.data.HabbitsDatabase
 import io.github.adambench.habbits.data.HabitRepository
 import io.github.adambench.habbits.data.SettingsRepository
@@ -51,6 +53,7 @@ class AppContainer(
         clock = clock,
         now = now,
         journal = journalProxy,
+        transaction = { block -> database.useWriterConnection { it.immediateTransaction { block() } } },
     )
 
     /** Local calendar date — the unit habits are logged against. */

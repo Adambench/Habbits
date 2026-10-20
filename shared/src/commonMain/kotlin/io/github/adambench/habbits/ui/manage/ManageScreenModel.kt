@@ -102,6 +102,11 @@ class ManageScreenModel(
         scope.launch { repository.setStatus(habit.id, status) }
     }
 
+    /** Before Fajr to Isha or back, with the history; see [HabitRepository.moveAcrossMidnight]. */
+    fun moveAcrossMidnight(habit: Habit) {
+        scope.launch { repository.moveAcrossMidnight(habit.id) }
+    }
+
     /** Drop [habitId] where [targetId] currently sits. */
     fun moveTo(habitId: String, targetId: String) {
         scope.launch {

@@ -44,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import io.github.adambench.habbits.domain.Category
 import io.github.adambench.habbits.domain.Habit
 import io.github.adambench.habbits.domain.HabitStatus
 import io.github.adambench.habbits.ui.PlusIcon
@@ -68,6 +69,7 @@ fun ManageScreen(
         model.moveTo(from as String, to as String)
     }
     var confirmDelete by remember { mutableStateOf<Habit?>(null) }
+    var confirmMidnight by remember { mutableStateOf<Habit?>(null) }
 
     Scaffold(modifier = modifier.fillMaxSize()) { insets ->
         LazyColumn(
@@ -103,6 +105,7 @@ fun ManageScreen(
                         onMove = { model.move(habit.id, it) },
                         onStatus = { model.setStatus(habit, it) },
                         onDelete = { confirmDelete = habit },
+                        onMoveAcrossMidnight = { confirmMidnight = habit },
                         modifier = Modifier
                             .zIndex(if (isDragged) 1f else 0f)
                             .layout { measurable, constraints ->
@@ -136,6 +139,7 @@ fun ManageScreen(
                             onMove = {},
                             onStatus = { model.setStatus(habit, it) },
                             onDelete = { confirmDelete = habit },
+                            onMoveAcrossMidnight = { confirmMidnight = habit },
                         )
                     }
                 }
@@ -168,6 +172,17 @@ fun ManageScreen(
                 confirmDelete = null
             },
             onDismiss = { confirmDelete = null },
+        )
+    }
+
+    confirmMidnight?.let { habit ->
+        MidnightDialog(
+            habit = habit,
+            onConfirm = {
+                model.moveAcrossMidnight(habit)
+                confirmMidnight = null
+            },
+            onDismiss = { confirmMidnight = null },
         )
     }
 }
@@ -311,6 +326,7 @@ private fun ManageRow(
     onMove: (Int) -> Unit,
     onStatus: (HabitStatus) -> Unit,
     onDelete: () -> Unit,
+    onMoveAcrossMidnight: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val active = habit.status == HabitStatus.Active
@@ -386,6 +402,7 @@ private fun ManageRow(
             onMove = onMove,
             onStatus = onStatus,
             onDelete = onDelete,
+            onMoveAcrossMidnight = onMoveAcrossMidnight,
         )
     }
 }
@@ -417,6 +434,7 @@ private fun RowMenu(
     onMove: (Int) -> Unit,
     onStatus: (HabitStatus) -> Unit,
     onDelete: () -> Unit,
+    onMoveAcrossMidnight: () -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
     Box {
@@ -439,6 +457,11 @@ private fun RowMenu(
             MenuItem("Edit", close(onEdit))
             if (canMoveUp) MenuItem("Move up", close { onMove(-1) })
             if (canMoveDown) MenuItem("Move down", close { onMove(1) })
+            when (habit.category) {
+                Category.BeforeFajr -> MenuItem("Move to Isha…", close(onMoveAcrossMidnight))
+                Category.Isha -> MenuItem("Move to Before Fajr…", close(onMoveAcrossMidnight))
+                else -> Unit
+            }
             HorizontalDivider()
             when (habit.status) {
                 HabitStatus.Active -> {
@@ -498,6 +521,33 @@ private fun DeleteDialog(
                 }
             }
         },
+    )
+}
+
+/**
+ * Crossing midnight re-dates every logged day, so it says what will happen
+ * before doing it, and that the opposite move undoes it.
+ */
+@Composable
+private fun MidnightDialog(habit: Habit, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    val toIsha = habit.category == Category.BeforeFajr
+    val name = habit.label.ifBlank { "this habit" }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (toIsha) "Move “$name” to Isha?" else "Move “$name” to Before Fajr?") },
+        text = {
+            Text(
+                if (toIsha) {
+                    "Every day you logged it moves one day earlier, so a night's prayer counts " +
+                        "on the evening it began rather than the morning after. "
+                } else {
+                    "Every day you logged it moves one day later, so a night's prayer counts " +
+                        "on the morning after rather than the evening it began. "
+                } + "Moving it back from this menu undoes it exactly.",
+            )
+        },
+        confirmButton = { TextButton(onClick = onConfirm) { Text("Move") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }
 
